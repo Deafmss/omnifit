@@ -93,7 +93,7 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
         {!evaluation ? (
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
+              <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider font-mono">
                 Peso em Jejum Hoje (kg)
               </label>
               <input
@@ -102,12 +102,12 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
                 value={currentWeight}
                 onChange={(e) => setCurrentWeight(e.target.value === '' ? '' : e.target.value)}
                 placeholder="Ex: 80"
-                className="w-full px-4 py-3 bg-slate-900 border border-white/10 rounded-xl text-white font-mono font-bold text-lg text-center focus:border-blue-500"
+                className="w-full px-4 py-3 bg-[#060A14] border border-white/10 rounded-2xl text-white font-mono font-bold text-lg text-center focus:border-[#84CC16] focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
+              <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider font-mono">
                 Nível de Fome ao Longo da Semana
               </label>
               <div className="grid grid-cols-5 gap-1.5">
@@ -122,10 +122,10 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
                     key={item.r}
                     type="button"
                     onClick={() => setHungerRating(item.r)}
-                    className={`py-2 px-1 rounded-xl border text-[11px] font-bold text-center transition-all ${
+                    className={`py-2 px-1 rounded-2xl border text-[11px] font-bold text-center transition-all ${
                       hungerRating === item.r
-                        ? 'bg-amber-600/20 border-amber-500 text-amber-400'
-                        : 'bg-slate-900 border-white/5 text-slate-400'
+                        ? 'bg-[#84CC16]/20 border-[#84CC16] text-[#A3E635] shadow-md shadow-lime-500/10'
+                        : 'bg-[#060A14] border-white/5 text-slate-400'
                     }`}
                   >
                     {item.r}
@@ -138,7 +138,7 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider">
+              <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider font-mono">
                 Nível de Energia e Força no Treino
               </label>
               <div className="grid grid-cols-5 gap-1.5">
@@ -153,10 +153,10 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
                     key={item.r}
                     type="button"
                     onClick={() => setEnergyRating(item.r)}
-                    className={`py-2 px-1 rounded-xl border text-[11px] font-bold text-center transition-all ${
+                    className={`py-2 px-1 rounded-2xl border text-[11px] font-bold text-center transition-all ${
                       energyRating === item.r
-                        ? 'bg-emerald-600/20 border-emerald-500 text-emerald-400'
-                        : 'bg-slate-900 border-white/5 text-slate-400'
+                        ? 'bg-[#84CC16]/20 border-[#84CC16] text-[#A3E635] shadow-md shadow-lime-500/10'
+                        : 'bg-[#060A14] border-white/5 text-slate-400'
                     }`}
                   >
                     {item.r}
@@ -170,10 +170,10 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider font-mono">
                   Adesão à Dieta na Semana:
                 </label>
-                <span className="text-xs font-mono font-bold text-blue-400">
+                <span className="text-xs font-mono font-bold text-[#A3E635]">
                   {adherencePercentage}%
                 </span>
               </div>

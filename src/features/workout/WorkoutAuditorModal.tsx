@@ -24,7 +24,7 @@ export const WorkoutAuditorModal: React.FC<WorkoutAuditorModalProps> = ({
   const getStatusBadge = (status: MuscleAuditResult['status']) => {
     switch (status) {
       case 'optimal':
-        return <Badge variant="emerald">Ótimo (MAV)</Badge>;
+        return <Badge variant="lime">Ótimo (MAV)</Badge>;
       case 'under':
         return <Badge variant="amber">Abaixo do MEV</Badge>;
       case 'over':

@@ -24,7 +24,7 @@ const TEMPLATES: TemplateOption[] = [
     id: 'ppl',
     title: 'Push / Pull / Legs (PPL)',
     badge: '3 a 6 Dias',
-    badgeColor: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+    badgeColor: 'bg-[#84CC16]/15 text-[#A3E635] border-[#84CC16]/30',
     description: 'Divisão clássica e mais recomendada da hipertrofia. Agrupa músculos por padrão de movimento.',
     details: [
       'Treino A (Push): Peito, Ombros e Tríceps',
@@ -37,7 +37,7 @@ const TEMPLATES: TemplateOption[] = [
     id: 'upper_lower',
     title: 'Upper / Lower (Superior & Inferior)',
     badge: '4 Dias',
-    badgeColor: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+    badgeColor: 'bg-[#84CC16]/15 text-[#A3E635] border-[#84CC16]/30',
     description: 'Excelente para treinar 4 dias na semana com alta frequência (2x por semana cada músculo).',
     details: [
       'Treino A: Superior 1 (Foco Peito e Costas)',
@@ -51,7 +51,7 @@ const TEMPLATES: TemplateOption[] = [
     id: 'abcde',
     title: 'ABCDE (Bro Split - 1 Músculo/Dia)',
     badge: '5 Dias',
-    badgeColor: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
+    badgeColor: 'bg-[#84CC16]/15 text-[#A3E635] border-[#84CC16]/30',
     description: 'Foco em volume máximo por sessão para quem treina de segunda a sexta-feira.',
     details: [
       'Treino A: Peitoral & Abdômen',
@@ -66,7 +66,7 @@ const TEMPLATES: TemplateOption[] = [
     id: 'abc_classic',
     title: 'ABC Clássico Brasileiro',
     badge: '3 Dias',
-    badgeColor: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+    badgeColor: 'bg-[#84CC16]/15 text-[#A3E635] border-[#84CC16]/30',
     description: 'A divisão mais tradicional das academias brasileiras.',
     details: [
       'Treino A: Peito, Tríceps e Abdômen',
@@ -79,7 +79,7 @@ const TEMPLATES: TemplateOption[] = [
     id: 'fullbody',
     title: 'Full Body (Corpo Inteiro)',
     badge: '3 Dias',
-    badgeColor: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
+    badgeColor: 'bg-[#84CC16]/15 text-[#A3E635] border-[#84CC16]/30',
     description: 'Estimula todos os grandes grupos musculares em cada sessão.',
     details: [
       'Treino A: Ênfase Peito & Quadríceps',
@@ -92,7 +92,7 @@ const TEMPLATES: TemplateOption[] = [
     id: 'blank',
     title: 'Montar do Zero (Fichas em Branco)',
     badge: '100% Livre',
-    badgeColor: 'bg-slate-500/15 text-slate-300 border-slate-500/30',
+    badgeColor: 'bg-white/10 text-slate-300 border-white/20',
     description: 'Comece com fichas limpas para adicionar exatamente os exercícios que você já faz na sua academia.',
     details: [
       'Treino A (Vazio)',
