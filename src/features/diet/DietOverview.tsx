@@ -469,9 +469,9 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
       {/* ========================================================= */}
       {/* 4. TIMELINE VERTICAL CONECTADA DE REFEIÇÕES               */}
       {/* ========================================================= */}
-      <div className="relative pl-3 space-y-4">
-        {/* Continuous Left Timeline Rail */}
-        <div className="absolute left-[22px] top-4 bottom-4 w-[2px] bg-gradient-to-b from-blue-500 via-emerald-500 to-slate-800 pointer-events-none" />
+      <div className="relative pl-1 space-y-3">
+        {/* Continuous Left Timeline Rail (Precisely Centered on 32px badge) */}
+        <div className="absolute left-[19px] top-4 bottom-4 w-[2px] bg-gradient-to-b from-blue-500 via-emerald-500 to-slate-800 pointer-events-none" />
 
         {mealPlans.map((meal, index) => {
           const preset = HUMAN_MEAL_PRESETS[index] || { time: '18:00', icon: Sun };
@@ -479,17 +479,22 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
           const isCollapsed = collapsedMealIds.has(meal.order);
 
           return (
-            <div key={meal.id || meal.order} className="relative flex items-start gap-3">
-              {/* Timeline Node Badge (Clickable to Toggle) */}
+            <div 
+              key={meal.id || meal.order} 
+              className={`relative flex gap-3 ${isCollapsed ? 'items-center' : 'items-start'}`}
+            >
+              {/* Timeline Node Badge (Clickable & Centered) */}
               <button
                 type="button"
                 onClick={() => toggleMealCollapse(meal.order)}
-                className={`w-7 h-7 rounded-full bg-[#050811] border-2 flex items-center justify-center shrink-0 z-10 shadow-md transition-all btn-tactile ${
-                  !isCollapsed ? 'border-blue-500 text-blue-400 glow-blue scale-105' : 'border-slate-700 text-slate-500 hover:border-slate-500'
+                className={`w-8 h-8 rounded-full bg-[#050811] border-2 flex items-center justify-center shrink-0 z-10 shadow-md transition-all btn-tactile ${
+                  !isCollapsed 
+                    ? 'border-blue-500 text-blue-400 glow-blue scale-105 mt-3' 
+                    : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-white'
                 }`}
                 title={`Clique para ${isCollapsed ? 'abrir' : 'recolher'} ${meal.name}`}
               >
-                <IconComponent className="w-3.5 h-3.5" />
+                <IconComponent className="w-4 h-4" />
               </button>
 
               {/* Meal Card Content */}
