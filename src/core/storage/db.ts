@@ -16,7 +16,7 @@ import {
   calculateCaffeineThermogenesis, 
   calculatePreWorkoutThermogenesis 
 } from '../math/thermogenics';
-import { TACO_FOOD_DATABASE } from '../data/tacoDatabase';
+import { TACO_FOOD_DATABASE, FOOD_DATABASE_MAP } from '../data/tacoDatabase';
 
 export class OmniFitDatabase extends Dexie {
   profiles!: EntityTable<UserProfile, 'id'>;
@@ -50,7 +50,18 @@ export const db = new OmniFitDatabase();
  */
 export async function getAllFoods(): Promise<FoodItem[]> {
   const custom = await db.customFoods.toArray();
+  for (const c of custom) {
+    FOOD_DATABASE_MAP.set(c.id, c);
+  }
   return [...TACO_FOOD_DATABASE, ...custom];
+}
+
+/**
+ * Salva ou atualiza um item no banco local e atualiza o mapa em memória.
+ */
+export async function saveFoodItem(food: FoodItem): Promise<void> {
+  await db.customFoods.put(food);
+  FOOD_DATABASE_MAP.set(food.id, food);
 }
 
 /**

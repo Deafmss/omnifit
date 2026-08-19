@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus } from 'lucide-react';
+import { Search, Plus, Globe, BookOpen, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import { FoodItem } from '../../core/storage/types';
 import { TACO_FOOD_DATABASE } from '../../core/data/tacoDatabase';
-import { getAllFoods } from '../../core/storage/db';
+import { getAllFoods, saveFoodItem } from '../../core/storage/db';
 import { formatHouseholdPortion } from '../../core/math/macroSolver';
+import { searchOpenFoodFacts } from '../../core/services/openFoodFacts';
 import { Modal } from '../../components/ui/Modal';
 import { CustomFoodModal } from './CustomFoodModal';
 
@@ -20,17 +21,26 @@ export const FoodPickerModal: React.FC<FoodPickerModalProps> = ({
 }) => {
   const [foods, setFoods] = useState<FoodItem[]>(TACO_FOOD_DATABASE);
   const [search, setSearch] = useState('');
+  const [searchMode, setSearchMode] = useState<'local' | 'online'>('local');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
   const [grams, setGrams] = useState<number | string>(100);
   const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
 
+  // Estados de busca online
+  const [onlineResults, setOnlineResults] = useState<FoodItem[]>([]);
+  const [isSearchingOnline, setIsSearchingOnline] = useState(false);
+  const [hasSearchedOnline, setHasSearchedOnline] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
       loadAllFoods();
       setSearch('');
+      setSearchMode('local');
       setSelectedFood(null);
       setGrams(100);
+      setOnlineResults([]);
+      setHasSearchedOnline(false);
     }
   }, [isOpen]);
 
@@ -46,7 +56,40 @@ export const FoodPickerModal: React.FC<FoodPickerModalProps> = ({
     setIsCustomModalOpen(false);
   };
 
-  const filteredFoods = foods.filter((f) => {
+  // Busca online com debounce
+  useEffect(() => {
+    if (searchMode !== 'online') return;
+
+    const trimmed = search.trim();
+    if (trimmed.length < 2) {
+      setOnlineResults([]);
+      setHasSearchedOnline(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingOnline(true);
+      const results = await searchOpenFoodFacts(trimmed);
+      setOnlineResults(results);
+      setIsSearchingOnline(false);
+      setHasSearchedOnline(true);
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [search, searchMode]);
+
+  const handleTriggerOnlineSearch = async () => {
+    setSearchMode('online');
+    if (search.trim().length >= 2) {
+      setIsSearchingOnline(true);
+      const results = await searchOpenFoodFacts(search.trim());
+      setOnlineResults(results);
+      setIsSearchingOnline(false);
+      setHasSearchedOnline(true);
+    }
+  };
+
+  const filteredLocalFoods = foods.filter((f) => {
     const matchesSearch = f.name.toLowerCase().includes(search.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || f.category === selectedCategory;
     return matchesSearch && matchesCategory;
@@ -54,12 +97,18 @@ export const FoodPickerModal: React.FC<FoodPickerModalProps> = ({
 
   const handleSelectFoodItem = (food: FoodItem) => {
     setSelectedFood(food);
-    setGrams(food.baseGrams || 100);
+    setGrams(food.servingGrams || food.baseGrams || 100);
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (selectedFood) {
       const cleanGrams = typeof grams === 'number' && grams > 0 ? grams : Number(grams) || 100;
+      
+      // Se veio da busca online, salva no IndexedDB para ficar sempre disponível offline
+      if (selectedFood.id.startsWith('off_')) {
+        await saveFoodItem(selectedFood);
+      }
+
       onSelectFood(selectedFood, Math.max(1, cleanGrams));
       onClose();
     }
@@ -79,96 +128,213 @@ export const FoodPickerModal: React.FC<FoodPickerModalProps> = ({
       <Modal
         isOpen={isOpen}
         onClose={onClose}
-        title="Tabela de Alimentos Oficiais (TACO / TBCA)"
-        subtitle="Selecione um alimento da base ou cadastre um novo produto pelo rótulo"
+        title="Catálogo Oficial de Alimentos"
+        subtitle="Consulte a tabela oficial TACO/TBCA ou pesquise mais de 50.000 produtos comerciais"
       >
-        <div className="space-y-4">
-          {/* Top CTA to Add Custom Food */}
-          <button
-            type="button"
-            onClick={() => setIsCustomModalOpen(true)}
-            className="w-full py-2.5 px-3 rounded-2xl bg-blue-600/15 border border-blue-500/30 text-blue-400 hover:bg-blue-600/25 text-xs font-bold transition-all flex items-center justify-center gap-2 btn-tactile"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Cadastrar Novo Alimento pelo Rótulo da Embalagem</span>
-          </button>
+        <div className="space-y-3.5">
+          {/* Toggle de Modo: Base Local vs Base Nacional */}
+          <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#060A14] border border-white/[0.08] rounded-2xl">
+            <button
+              type="button"
+              onClick={() => setSearchMode('local')}
+              className={`py-2 px-3 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 btn-tactile ${
+                searchMode === 'local'
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Tabela Oficial (TACO)</span>
+            </button>
 
-          {/* Search */}
+            <button
+              type="button"
+              onClick={() => {
+                setSearchMode('online');
+                if (search.trim().length >= 2 && onlineResults.length === 0) {
+                  handleTriggerOnlineSearch();
+                }
+              }}
+              className={`py-2 px-3 rounded-xl text-xs font-extrabold transition-all flex items-center justify-center gap-1.5 btn-tactile ${
+                searchMode === 'online'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Base Nacional (50.000+)</span>
+            </button>
+          </div>
+
+          {/* Search Input */}
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por ovos, frango, pão, arroz, aveia, whey..."
+              placeholder={
+                searchMode === 'local'
+                  ? 'Buscar por frango, arroz, ovos, salsicha, mortadela, pizza...'
+                  : 'Digite a marca ou produto (ex: Salsicha Sadia, Whey Growth, Danone)...'
+              }
               className="w-full pl-10 pr-4 py-2.5 bg-[#060A14] border border-white/[0.08] rounded-2xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
             />
+            {isSearchingOnline && (
+              <Loader2 className="w-4 h-4 text-blue-400 animate-spin absolute right-3.5 top-1/2 -translate-y-1/2" />
+            )}
           </div>
 
-          {/* Category Filter Pills */}
-          <div className="flex gap-1.5 overflow-x-auto pb-1 text-[11px] font-bold [scrollbar-width:none]">
-            {[
-              { id: 'all', label: 'Todos' },
-              { id: 'protein', label: 'Proteínas' },
-              { id: 'carb', label: 'Carboidratos' },
-              { id: 'fat', label: 'Gorduras' },
-              { id: 'dairy', label: 'Laticínios' },
-              { id: 'supplement', label: 'Suplementos' },
-              { id: 'fruit', label: 'Frutas' },
-              { id: 'vegetable', label: 'Vegetais' }
-            ].map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`px-3 py-1 rounded-xl whitespace-nowrap transition-all btn-tactile ${
-                  selectedCategory === cat.id
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-[#060A14] text-slate-400 border border-white/5 hover:text-white'
-                }`}
-              >
-                {cat.label}
-              </button>
-            ))}
-          </div>
+          {/* Category Filter Pills (apenas no modo local) */}
+          {searchMode === 'local' && (
+            <div className="flex gap-1.5 overflow-x-auto pb-1 text-[11px] font-bold [scrollbar-width:none]">
+              {[
+                { id: 'all', label: 'Todos' },
+                { id: 'protein', label: 'Proteínas' },
+                { id: 'carb', label: 'Carboidratos' },
+                { id: 'fat', label: 'Gorduras' },
+                { id: 'dairy', label: 'Laticínios' },
+                { id: 'supplement', label: 'Suplementos' },
+                { id: 'fruit', label: 'Frutas' },
+                { id: 'vegetable', label: 'Vegetais' }
+              ].map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat.id)}
+                  className={`px-3 py-1 rounded-xl whitespace-nowrap transition-all btn-tactile ${
+                    selectedCategory === cat.id
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-[#060A14] text-slate-400 border border-white/5 hover:text-white'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+          )}
 
-          {/* List */}
+          {/* List Area */}
           <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
-            {filteredFoods.length === 0 ? (
-              <div className="p-6 text-center text-slate-500 text-xs">
-                Nenhum alimento encontrado. Use o botão acima para cadastrar pelo rótulo!
-              </div>
-            ) : (
-              filteredFoods.map((food) => {
-                const isSelected = selectedFood?.id === food.id;
-                return (
-                  <div
-                    key={food.id}
-                    onClick={() => handleSelectFoodItem(food)}
-                    className={`p-3 rounded-2xl border text-xs cursor-pointer transition-all flex items-center justify-between btn-tactile ${
-                      isSelected
-                        ? 'bg-blue-600/20 border-blue-500 text-white shadow-md'
-                        : 'bg-[#060A14] border-white/[0.06] text-slate-300 hover:border-white/[0.14]'
-                    }`}
-                  >
-                    <div className="min-w-0 pr-2">
-                      <div className="flex items-center gap-1.5">
-                        <p className="font-bold truncate text-slate-100">{food.name}</p>
-                        {food.isCustom && (
-                          <span className="px-1.5 py-0.2 bg-purple-500/20 text-purple-300 rounded text-[9px] font-bold shrink-0">
-                            Próprio
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-slate-400 font-mono mt-0.5">
-                        {food.servingName ? <strong className="text-amber-400 font-semibold">{food.servingName} &bull; </strong> : ''}
-                        {food.caloriesPer100g} kcal/100g &bull; P: {food.proteinPer100g}g | C: {food.carbsPer100g}g | G: {food.fatPer100g}g
-                      </p>
-                    </div>
-                    {isSelected && <span className="text-blue-400 font-bold text-xs shrink-0 font-mono">Selecionado</span>}
+            {searchMode === 'local' ? (
+              <>
+                {filteredLocalFoods.length === 0 ? (
+                  <div className="p-5 text-center space-y-2">
+                    <p className="text-slate-400 text-xs">Nenhum alimento encontrado na lista local.</p>
+                    <button
+                      type="button"
+                      onClick={handleTriggerOnlineSearch}
+                      className="px-3.5 py-2 rounded-xl bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 border border-indigo-500/30 text-xs font-bold transition-all inline-flex items-center gap-1.5 btn-tactile"
+                    >
+                      <Globe className="w-3.5 h-3.5" />
+                      <span>Buscar "{search}" na Base Nacional (50.000+ marcas)</span>
+                    </button>
                   </div>
-                );
-              })
+                ) : (
+                  <>
+                    {filteredLocalFoods.map((food) => {
+                      const isSelected = selectedFood?.id === food.id;
+                      return (
+                        <div
+                          key={food.id}
+                          onClick={() => handleSelectFoodItem(food)}
+                          className={`p-3 rounded-2xl border text-xs cursor-pointer transition-all flex items-center justify-between btn-tactile ${
+                            isSelected
+                              ? 'bg-blue-600/20 border-blue-500 text-white shadow-md'
+                              : 'bg-[#060A14] border-white/[0.06] text-slate-300 hover:border-white/[0.14]'
+                          }`}
+                        >
+                          <div className="min-w-0 pr-2">
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-bold truncate text-slate-100">{food.name}</p>
+                              {food.isCustom && (
+                                <span className="px-1.5 py-0.2 bg-purple-500/20 text-purple-300 rounded text-[9px] font-bold shrink-0">
+                                  Próprio
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                              {food.servingName ? (
+                                <strong className="text-amber-400 font-semibold">{food.servingName} &bull; </strong>
+                              ) : (
+                                ''
+                              )}
+                              {food.caloriesPer100g} kcal/100g &bull; P: {food.proteinPer100g}g | C: {food.carbsPer100g}g | G: {food.fatPer100g}g
+                            </p>
+                          </div>
+                          {isSelected && <span className="text-blue-400 font-bold text-xs shrink-0 font-mono">Selecionado</span>}
+                        </div>
+                      );
+                    })}
+
+                    {/* Banner de atalho para busca online quando o usuário digita algo */}
+                    {search.trim().length >= 2 && (
+                      <div
+                        onClick={handleTriggerOnlineSearch}
+                        className="p-2.5 rounded-2xl border border-dashed border-indigo-500/30 bg-indigo-950/20 hover:bg-indigo-950/40 text-center cursor-pointer transition-all flex items-center justify-center gap-2 text-xs font-bold text-indigo-300 btn-tactile"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>Não achou sua marca? Buscar "{search}" na Base Nacional Oficial</span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
+            ) : (
+              /* Modo Busca Nacional Online */
+              <>
+                {isSearchingOnline ? (
+                  <div className="p-8 text-center space-y-2">
+                    <Loader2 className="w-6 h-6 text-blue-400 animate-spin mx-auto" />
+                    <p className="text-xs text-slate-400">Consultando base nacional de rótulos comerciais...</p>
+                  </div>
+                ) : onlineResults.length === 0 ? (
+                  <div className="p-6 text-center space-y-1.5 text-slate-400 text-xs">
+                    {hasSearchedOnline ? (
+                      <>
+                        <AlertCircle className="w-5 h-5 text-amber-400 mx-auto mb-1" />
+                        <p>Nenhum produto encontrado na base nacional para "{search}".</p>
+                        <p className="text-[11px] text-slate-500">Tente buscar por um termo mais simples ou cadastre pelo rótulo.</p>
+                      </>
+                    ) : (
+                      <p>Digite o nome do produto ou marca para pesquisar em 50.000+ itens brasileiros.</p>
+                    )}
+                  </div>
+                ) : (
+                  onlineResults.map((food) => {
+                    const isSelected = selectedFood?.id === food.id;
+                    return (
+                      <div
+                        key={food.id}
+                        onClick={() => handleSelectFoodItem(food)}
+                        className={`p-3 rounded-2xl border text-xs cursor-pointer transition-all flex items-center justify-between btn-tactile ${
+                          isSelected
+                            ? 'bg-indigo-600/20 border-indigo-500 text-white shadow-md'
+                            : 'bg-[#060A14] border-white/[0.06] text-slate-300 hover:border-white/[0.14]'
+                        }`}
+                      >
+                        <div className="min-w-0 pr-2">
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-bold truncate text-slate-100">{food.name}</p>
+                            <span className="px-1.5 py-0.2 bg-indigo-500/20 text-indigo-300 rounded text-[9px] font-bold shrink-0 font-mono">
+                              Nacional
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                            {food.servingName ? (
+                              <strong className="text-amber-400 font-semibold">{food.servingName} &bull; </strong>
+                            ) : (
+                              ''
+                            )}
+                            {food.caloriesPer100g} kcal/100g &bull; P: {food.proteinPer100g}g | C: {food.carbsPer100g}g | G: {food.fatPer100g}g
+                          </p>
+                        </div>
+                        {isSelected && <span className="text-indigo-400 font-bold text-xs shrink-0 font-mono">Selecionado</span>}
+                      </div>
+                    );
+                  })
+                )}
+              </>
             )}
           </div>
 
@@ -239,6 +405,16 @@ export const FoodPickerModal: React.FC<FoodPickerModalProps> = ({
               </button>
             </div>
           )}
+
+          {/* Bottom CTA to Add Custom Food from packaging */}
+          <button
+            type="button"
+            onClick={() => setIsCustomModalOpen(true)}
+            className="w-full py-2 px-3 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 text-slate-400 hover:text-slate-200 text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 btn-tactile"
+          >
+            <Plus className="w-3 h-3" />
+            <span>Cadastrar produto específico manualmente</span>
+          </button>
         </div>
       </Modal>
 
