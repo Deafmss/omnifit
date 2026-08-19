@@ -162,12 +162,35 @@ export interface HouseholdPortionDisplay {
   label: string;
   hasHousehold: boolean;
   unitName?: string;
+  abbrevUnit?: string;
   units?: number;
   grams: number;
 }
 
+const UNIT_ABBREVIATIONS: Record<string, string> = {
+  'unidade': 'un',
+  'unidade(s)': 'un',
+  'unidades': 'un',
+  'fatia': 'fat',
+  'fatia(s)': 'fat',
+  'fatias': 'fat',
+  'scoop': 'scp',
+  'scoop(s)': 'scp',
+  'scoops': 'scp',
+  'colher(es) de sopa': 'cs',
+  'colher de sopa': 'cs',
+  'concha': 'cch',
+  'concha(s)': 'cch',
+  'copo': 'copo',
+  'copo(s)': 'copo',
+  'pote': 'pote',
+  'pote(s)': 'pote',
+  'clara': 'clara',
+  'clara(s)': 'clara'
+};
+
 /**
- * Converte gramas para medidas caseiras intuitivas do dia a dia.
+ * Converte gramas para medidas caseiras intuitivas do dia a dia com abreviação compacta.
  */
 export function formatHouseholdPortion(food: FoodItem, grams: number): HouseholdPortionDisplay {
   if (food.servingUnit && food.servingGrams && food.servingGrams > 0) {
@@ -175,14 +198,15 @@ export function formatHouseholdPortion(food: FoodItem, grams: number): Household
     const roundedUnits = Math.round(rawUnits * 10) / 10;
     const countStr = roundedUnits % 1 === 0 ? roundedUnits.toString() : roundedUnits.toFixed(1);
     
-    // Tratamento de pluralização
+    const rawKey = food.servingUnit.toLowerCase().trim();
+    const abbrev = UNIT_ABBREVIATIONS[rawKey] || rawKey.replace(/\(s\)/g, '');
     const baseUnit = food.servingUnit.replace(/\(s\)/g, '');
-    const unitText = roundedUnits === 1 ? baseUnit : `${baseUnit}s`;
 
     return {
-      label: `${countStr} ${unitText} (${grams}g)`,
+      label: `${countStr} ${abbrev} (${grams}g)`,
       hasHousehold: true,
       unitName: baseUnit,
+      abbrevUnit: abbrev,
       units: roundedUnits,
       grams
     };
@@ -195,4 +219,5 @@ export function formatHouseholdPortion(food: FoodItem, grams: number): Household
     grams
   };
 }
+
 

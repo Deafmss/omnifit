@@ -194,8 +194,8 @@ export const FoodPickerModal: React.FC<FoodPickerModalProps> = ({
                       >
                         -
                       </button>
-                      <span className="text-xs font-bold text-white font-mono px-2">
-                        {household?.units} {household?.unitName}
+                      <span className="text-xs font-bold text-white font-mono px-2 whitespace-nowrap">
+                        {household?.units} {household?.abbrevUnit}
                       </span>
                       <button
                         type="button"

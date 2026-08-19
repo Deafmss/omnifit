@@ -207,7 +207,7 @@ export const MealCard: React.FC<MealCardProps> = ({
                           <button
                             type="button"
                             onClick={() => handleAdjustHouseholdUnits(idx, -1, food.servingGrams!)}
-                            className="w-4 h-4 rounded text-slate-400 hover:text-white flex items-center justify-center text-xs font-bold"
+                            className="w-4 h-4 rounded text-slate-400 hover:text-white flex items-center justify-center text-xs font-bold btn-tactile"
                           >
                             -
                           </button>
@@ -218,16 +218,16 @@ export const MealCard: React.FC<MealCardProps> = ({
                               setEditingGramsIndex(idx);
                               setTempGrams(portion.grams);
                             }}
-                            className="text-xs font-bold text-slate-200 font-mono px-1 hover:text-blue-400 transition-colors"
+                            className="text-xs font-bold text-slate-200 font-mono px-1 hover:text-blue-400 transition-colors whitespace-nowrap"
                             title="Clique para editar gramas exatas"
                           >
-                            {household.units} {household.unitName} <span className="text-slate-500 text-[10px]">({portion.grams}g)</span>
+                            {household.units} {household.abbrevUnit} <span className="text-slate-500 text-[10px]">({portion.grams}g)</span>
                           </button>
 
                           <button
                             type="button"
                             onClick={() => handleAdjustHouseholdUnits(idx, 1, food.servingGrams!)}
-                            className="w-4 h-4 rounded text-slate-400 hover:text-white flex items-center justify-center text-xs font-bold"
+                            className="w-4 h-4 rounded text-slate-400 hover:text-white flex items-center justify-center text-xs font-bold btn-tactile"
                           >
                             +
                           </button>
