@@ -1,13 +1,8 @@
 import React, { useState } from 'react';
 import { 
-  Coins, 
-  Flame, 
-  Dumbbell, 
-  Scale, 
   Check, 
-  Utensils, 
-  Wand2,
-  PenTool
+  Layers,
+  FileText
 } from 'lucide-react';
 import { Modal } from '../../components/ui/Modal';
 import { UserProfile, MetabolicStats, MealPlan } from '../../core/storage/types';
@@ -87,191 +82,162 @@ export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
     onClose();
   };
 
+  const budgetOptions: { id: BudgetTier; title: string; subtitle: string; foods: string }[] = [
+    {
+      id: 'economic',
+      title: 'Econômico (Custo-Benefício)',
+      subtitle: 'Alimentos acessíveis e de alto valor biológico',
+      foods: 'Ovos, frango, feijão, arroz, aveia, banana, amendoim'
+    },
+    {
+      id: 'standard',
+      title: 'Padrão Equilibrado',
+      subtitle: 'Maior variedade de carnes magras e laticínios',
+      foods: 'Patinho moído, frango, queijo minas, iogurte, frutas'
+    },
+    {
+      id: 'premium',
+      title: 'Flexível / Amplo',
+      subtitle: 'Sem restrições de cortes e ingredientes',
+      foods: 'Salmão, tilápia, filé mignon, castanhas nobres'
+    }
+  ];
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title="Montador de Cardápio"
-      subtitle="Escolha como prefere estruturar o seu plano alimentar"
+      subtitle="Defina a estrutura e as preferências do seu plano alimentar"
     >
       <div className="space-y-4 max-h-[72vh] overflow-y-auto pr-1">
-        {/* Mode Selector */}
-        <div className="grid grid-cols-2 gap-2">
+        {/* Segmented Control (iOS / Linear Style) */}
+        <div className="p-1 bg-[#060A14] border border-white/[0.08] rounded-2xl flex gap-1">
           <button
             type="button"
             onClick={() => setMode('auto')}
-            className={`p-3 rounded-2xl border transition-all flex flex-col items-center gap-1.5 btn-tactile text-left ${
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
               mode === 'auto'
-                ? 'bg-blue-600/20 border-blue-500 text-white shadow-md'
-                : 'bg-[#060A14] border-white/[0.06] text-slate-400 hover:text-white'
+                ? 'bg-[#0E1628] text-white shadow border border-white/10'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center">
-              <Wand2 className="w-4 h-4" />
-            </div>
-            <span className="text-xs font-bold text-white">Gerar Automático</span>
-            <span className="text-[10px] text-slate-400 text-center leading-tight">
-              O app calcula as porções ideais para você
-            </span>
+            <Layers className="w-3.5 h-3.5" />
+            <span>Sugestão Pronta</span>
           </button>
 
           <button
             type="button"
             onClick={() => setMode('custom')}
-            className={`p-3 rounded-2xl border transition-all flex flex-col items-center gap-1.5 btn-tactile text-left ${
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
               mode === 'custom'
-                ? 'bg-emerald-600/20 border-emerald-500 text-white shadow-md'
-                : 'bg-[#060A14] border-white/[0.06] text-slate-400 hover:text-white'
+                ? 'bg-[#0E1628] text-white shadow border border-white/10'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-              <PenTool className="w-4 h-4" />
-            </div>
-            <span className="text-xs font-bold text-white">Montar do Meu Jeito</span>
-            <span className="text-[10px] text-slate-400 text-center leading-tight">
-              Adicione seus alimentos vendo as calorias
-            </span>
+            <FileText className="w-3.5 h-3.5" />
+            <span>Montar do Zero</span>
           </button>
         </div>
 
         {mode === 'auto' ? (
-          /* Auto Mode Options */
-          <div className="space-y-4 animate-in fade-in duration-200">
-            {/* Step 1: Orçamento / Custo-Benefício */}
+          <div className="space-y-4 animate-in fade-in duration-150">
+            {/* Seletor de Custo / Orçamento */}
             <div className="space-y-2">
-              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                <Coins className="w-3.5 h-3.5 text-amber-400" />
-                <span>Nível de Custo & Orçamento</span>
-              </span>
+              <label className="text-xs font-bold text-slate-300 block">
+                Perfil de Ingredientes & Custo
+              </label>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {/* Economic */}
-                <div
-                  onClick={() => setBudgetTier('economic')}
-                  className={`p-3.5 rounded-2xl border cursor-pointer transition-all space-y-1.5 btn-tactile ${
-                    budgetTier === 'economic'
-                      ? 'bg-emerald-950/30 border-emerald-500 text-white shadow-md'
-                      : 'bg-[#060A14] border-white/[0.06] text-slate-400 hover:border-white/20'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-emerald-400 font-display">🟢 Econômico</span>
-                    {budgetTier === 'economic' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
-                  </div>
-                  <p className="text-[11px] text-slate-300 font-bold">Máximo Custo-Benefício</p>
-                  <p className="text-[10px] text-slate-400 leading-tight">
-                    Ovos, Frango, Sardinha, Arroz, Feijão, Aveia, Banana, Amendoim.
-                  </p>
-                </div>
+              <div className="space-y-2">
+                {budgetOptions.map((opt) => {
+                  const isSelected = budgetTier === opt.id;
+                  return (
+                    <div
+                      key={opt.id}
+                      onClick={() => setBudgetTier(opt.id)}
+                      className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-start justify-between gap-3 ${
+                        isSelected
+                          ? 'bg-[#0B1220] border-blue-500/80 text-white'
+                          : 'bg-[#060A14] border-white/[0.06] text-slate-400 hover:border-white/15'
+                      }`}
+                    >
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-bold ${isSelected ? 'text-white' : 'text-slate-300'}`}>
+                            {opt.title}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-tight">
+                          {opt.subtitle}
+                        </p>
+                        <p className="text-[10px] text-slate-500 font-mono pt-1 truncate">
+                          {opt.foods}
+                        </p>
+                      </div>
 
-                {/* Standard */}
-                <div
-                  onClick={() => setBudgetTier('standard')}
-                  className={`p-3.5 rounded-2xl border cursor-pointer transition-all space-y-1.5 btn-tactile ${
-                    budgetTier === 'standard'
-                      ? 'bg-blue-950/30 border-blue-500 text-white shadow-md'
-                      : 'bg-[#060A14] border-white/[0.06] text-slate-400 hover:border-white/20'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-blue-400 font-display">🔵 Equilibrado</span>
-                    {budgetTier === 'standard' && <Check className="w-3.5 h-3.5 text-blue-400" />}
-                  </div>
-                  <p className="text-[11px] text-slate-300 font-bold">Padrão Brasileiro</p>
-                  <p className="text-[10px] text-slate-400 leading-tight">
-                    Patinho moído, Frango, Whey, Queijo Minas, Iogurte, Frutas.
-                  </p>
-                </div>
-
-                {/* Premium */}
-                <div
-                  onClick={() => setBudgetTier('premium')}
-                  className={`p-3.5 rounded-2xl border cursor-pointer transition-all space-y-1.5 btn-tactile ${
-                    budgetTier === 'premium'
-                      ? 'bg-purple-950/30 border-purple-500 text-white shadow-md'
-                      : 'bg-[#060A14] border-white/[0.06] text-slate-400 hover:border-white/20'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-purple-400 font-display">🟣 Livre</span>
-                    {budgetTier === 'premium' && <Check className="w-3.5 h-3.5 text-purple-400" />}
-                  </div>
-                  <p className="text-[11px] text-slate-300 font-bold">Gourmet & Variado</p>
-                  <p className="text-[10px] text-slate-400 leading-tight">
-                    Salmão, Filé Mignon, Castanhas, Frutas nobres.
-                  </p>
-                </div>
+                      <div
+                        className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 mt-0.5 ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-600 text-white'
+                            : 'border-slate-700 bg-transparent'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-3 h-3" />}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
-            {/* Step 2: Foco da Dieta */}
+            {/* Seletor de Objetivo */}
             <div className="space-y-2">
-              <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                <Flame className="w-3.5 h-3.5 text-blue-400" />
-                <span>Foco & Estratégia</span>
-              </span>
+              <label className="text-xs font-bold text-slate-300 block">
+                Objetivo
+              </label>
 
               <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setFocus('fat_loss')}
-                  className={`p-3 rounded-2xl border text-xs font-bold transition-all flex flex-col items-center gap-1 btn-tactile ${
-                    focus === 'fat_loss'
-                      ? 'bg-gradient-to-b from-blue-600/30 to-blue-900/30 border-blue-500 text-white'
-                      : 'bg-[#060A14] border-white/[0.06] text-slate-400'
-                  }`}
-                >
-                  <Flame className="w-4 h-4 text-blue-400" />
-                  <span>Secar (Cutting)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setFocus('recomposition')}
-                  className={`p-3 rounded-2xl border text-xs font-bold transition-all flex flex-col items-center gap-1 btn-tactile ${
-                    focus === 'recomposition'
-                      ? 'bg-gradient-to-b from-emerald-600/30 to-emerald-900/30 border-emerald-500 text-white'
-                      : 'bg-[#060A14] border-white/[0.06] text-slate-400'
-                  }`}
-                >
-                  <Scale className="w-4 h-4 text-emerald-400" />
-                  <span>Recomposição</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setFocus('hypertrophy')}
-                  className={`p-3 rounded-2xl border text-xs font-bold transition-all flex flex-col items-center gap-1 btn-tactile ${
-                    focus === 'hypertrophy'
-                      ? 'bg-gradient-to-b from-amber-600/30 to-amber-900/30 border-amber-500 text-white'
-                      : 'bg-[#060A14] border-white/[0.06] text-slate-400'
-                  }`}
-                >
-                  <Dumbbell className="w-4 h-4 text-amber-400" />
-                  <span>Hipertrofia</span>
-                </button>
+                {[
+                  { id: 'fat_loss', label: 'Emagrecimento' },
+                  { id: 'recomposition', label: 'Recomposição' },
+                  { id: 'hypertrophy', label: 'Hipertrofia' }
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setFocus(item.id as DietFocus)}
+                    className={`py-2.5 px-2 rounded-xl border text-xs font-bold transition-all text-center ${
+                      focus === item.id
+                        ? 'bg-blue-600/20 border-blue-500 text-white'
+                        : 'bg-[#060A14] border-white/[0.06] text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {/* Step 3: Quantidade de Refeições */}
+            {/* Número de Refeições */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                  <Utensils className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Número de Refeições no Dia</span>
+                <label className="text-xs font-bold text-slate-300">
+                  Refeições por dia
+                </label>
+                <span className="text-xs font-mono font-bold text-blue-400">
+                  {mealsCount} refeições
                 </span>
-                <span className="text-xs font-mono font-bold text-emerald-400">{mealsCount} refeições</span>
               </div>
 
-              <div className="flex gap-1.5">
+              <div className="flex gap-2">
                 {[2, 3, 4, 5, 6].map((num) => (
                   <button
                     key={num}
                     type="button"
                     onClick={() => setMealsCount(num)}
-                    className={`flex-1 py-2 rounded-xl text-xs font-mono font-bold transition-all btn-tactile ${
+                    className={`flex-1 py-2 rounded-xl text-xs font-mono font-bold transition-all ${
                       mealsCount === num
-                        ? 'bg-emerald-500 text-slate-950 shadow-md font-black'
+                        ? 'bg-blue-600 text-white shadow-sm'
                         : 'bg-[#060A14] border border-white/[0.06] text-slate-400 hover:text-white'
                     }`}
                   >
@@ -281,49 +247,54 @@ export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
               </div>
             </div>
 
-            {/* Target Preview */}
-            <div className="p-3.5 rounded-2xl bg-[#060A14] border border-white/[0.06] space-y-1 text-center font-mono">
-              <span className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Meta Calórica Calculada</span>
-              <div className="text-sm font-black text-white">
-                <span className="text-blue-400">{stats.targetCalories} kcal</span> &bull; P: {stats.proteinGrams}g &bull; C: {stats.carbGrams}g &bull; G: {stats.fatGrams}g
-              </div>
+            {/* Resumo de Metas */}
+            <div className="p-3.5 rounded-2xl bg-[#060A14] border border-white/[0.06] flex items-center justify-between font-mono text-xs">
+              <span className="text-slate-400 font-medium">Meta Diária:</span>
+              <span className="font-bold text-white">
+                <strong className="text-blue-400">{stats.targetCalories} kcal</strong> &bull; P: {stats.proteinGrams}g &bull; C: {stats.carbGrams}g &bull; G: {stats.fatGrams}g
+              </span>
             </div>
 
+            {/* Botão de Ação Sólido */}
             <button
               onClick={handleGenerateAutomatic}
-              className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-blue-600 via-teal-500 to-emerald-500 text-white font-extrabold text-xs shadow-xl shadow-blue-500/20 btn-tactile flex items-center justify-center gap-2"
+              className="w-full py-3.5 px-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center btn-tactile"
             >
-              <span>Gerar Cardápio Balanceado com Medidas Caseiras</span>
+              <span>Criar Plano Alimentar</span>
             </button>
           </div>
         ) : (
-          /* Custom Blank Mode */
-          <div className="space-y-4 animate-in fade-in duration-200">
+          /* Custom Mode */
+          <div className="space-y-4 animate-in fade-in duration-150">
             <div className="p-4 rounded-2xl bg-[#060A14] border border-white/[0.06] space-y-2">
-              <span className="text-xs font-bold text-white block">Como funciona:</span>
+              <h4 className="text-xs font-bold text-white">Montagem manual com metas divididas</h4>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Criaremos <strong>{mealsCount} refeições limpas</strong> dividindo suas metas de calorias e macros igualmente. Você poderá adicionar qualquer alimento da tabela oficial ou da base nacional e acompanhar as calorias de cada prato.
+                O aplicativo criará <strong>{mealsCount} refeições em branco</strong> com os alvos calóricos calculados igualmente para o seu dia ({Math.round(stats.targetCalories / mealsCount)} kcal por refeição).
+              </p>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Você poderá adicionar livremente seus alimentos e acompanhar o progresso dos macronutrientes em tempo real.
               </p>
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                  <Utensils className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Quantas refeições você quer no dia?</span>
+                <label className="text-xs font-bold text-slate-300">
+                  Refeições por dia
+                </label>
+                <span className="text-xs font-mono font-bold text-blue-400">
+                  {mealsCount} refeições
                 </span>
-                <span className="text-xs font-mono font-bold text-emerald-400">{mealsCount} refeições</span>
               </div>
 
-              <div className="flex gap-1.5">
+              <div className="flex gap-2">
                 {[2, 3, 4, 5, 6].map((num) => (
                   <button
                     key={num}
                     type="button"
                     onClick={() => setMealsCount(num)}
-                    className={`flex-1 py-2 rounded-xl text-xs font-mono font-bold transition-all btn-tactile ${
+                    className={`flex-1 py-2 rounded-xl text-xs font-mono font-bold transition-all ${
                       mealsCount === num
-                        ? 'bg-emerald-500 text-slate-950 shadow-md font-black'
+                        ? 'bg-blue-600 text-white shadow-sm'
                         : 'bg-[#060A14] border border-white/[0.06] text-slate-400 hover:text-white'
                     }`}
                   >
@@ -335,9 +306,9 @@ export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
 
             <button
               onClick={handleStartBlank}
-              className="w-full py-3.5 px-4 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs shadow-xl shadow-emerald-500/20 btn-tactile flex items-center justify-center gap-2"
+              className="w-full py-3.5 px-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center btn-tactile"
             >
-              <span>Criar Estrutura e Montar Sozinho</span>
+              <span>Iniciar Montagem Manual</span>
             </button>
           </div>
         )}
