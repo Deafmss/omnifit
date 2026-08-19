@@ -6,9 +6,11 @@ import {
   WorkoutRoutine, 
   WorkoutSessionLog, 
   WeightLog, 
-  CheckInLog 
+  CheckInLog,
+  DailyThermogenicLog
 } from './types';
 import { calculateWeightEMA } from '../math/adaptiveEngine';
+import { USER_PRE_WORKOUT_FORMULA, calculateCaffeineThermogenesis, calculatePreWorkoutThermogenesis } from '../math/thermogenics';
 
 export class OmniFitDatabase extends Dexie {
   profiles!: EntityTable<UserProfile, 'id'>;
@@ -18,17 +20,19 @@ export class OmniFitDatabase extends Dexie {
   sessionLogs!: EntityTable<WorkoutSessionLog, 'id'>;
   weightLogs!: EntityTable<WeightLog, 'id'>;
   checkInLogs!: EntityTable<CheckInLog, 'id'>;
+  thermogenicLogs!: EntityTable<DailyThermogenicLog, 'id'>;
 
   constructor() {
     super('OmniFitDatabase');
-    this.version(1).stores({
+    this.version(2).stores({
       profiles: '++id, isCalibrated, createdAt',
       mealPlans: '++id, order, name',
       customFoods: 'id, name, category',
       routines: '++id, splitCode, name',
       sessionLogs: '++id, date, completed',
       weightLogs: '++id, date',
-      checkInLogs: '++id, date'
+      checkInLogs: '++id, date',
+      thermogenicLogs: '++id, date'
     });
   }
 }
@@ -51,15 +55,73 @@ export async function saveProfile(profile: UserProfile): Promise<number> {
   if (existing?.id) {
     await db.profiles.update(existing.id, {
       ...profile,
+      preWorkoutFormula: profile.preWorkoutFormula || USER_PRE_WORKOUT_FORMULA,
       updatedAt: new Date().toISOString()
     });
     return existing.id;
   }
   return (await db.profiles.add({
     ...profile,
+    preWorkoutFormula: profile.preWorkoutFormula || USER_PRE_WORKOUT_FORMULA,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   })) as number;
+}
+
+/**
+ * Registra ou atualiza o consumo termogênico de café e pré-treino do dia.
+ */
+export async function updateTodayThermogenics(
+  coffeeDelta: number,
+  preWorkoutDelta: number,
+  bmr: number
+): Promise<DailyThermogenicLog> {
+  const today = new Date().toISOString().split('T')[0];
+  const existing = await db.thermogenicLogs.where('date').equals(today).first();
+
+  const currentCoffee = Math.max(0, (existing?.blackCoffeeCups || 0) + coffeeDelta);
+  const currentPreWorkout = Math.max(0, (existing?.preWorkoutDoses || 0) + preWorkoutDelta);
+
+  // Calcula queima de café (100mg cafeina por xícara)
+  const coffeeBurn = calculateCaffeineThermogenesis(currentCoffee * 100, bmr).burnKcal;
+
+  // Calcula queima de pré-treino
+  const profile = await getActiveProfile();
+  const formula = profile?.preWorkoutFormula || USER_PRE_WORKOUT_FORMULA;
+  const preWorkoutBurn = calculatePreWorkoutThermogenesis(formula, bmr, currentPreWorkout).totalThermogenicKcal;
+
+  const totalBurn = coffeeBurn + preWorkoutBurn;
+
+  const logData: DailyThermogenicLog = {
+    date: today,
+    blackCoffeeCups: currentCoffee,
+    preWorkoutDoses: currentPreWorkout,
+    totalThermogenicCaloriesBurned: totalBurn
+  };
+
+  if (existing?.id) {
+    await db.thermogenicLogs.update(existing.id, logData);
+    return { ...logData, id: existing.id };
+  } else {
+    const newId = (await db.thermogenicLogs.add(logData)) as number;
+    return { ...logData, id: newId };
+  }
+}
+
+/**
+ * Obtém o log termogênico do dia.
+ */
+export async function getTodayThermogenicLog(): Promise<DailyThermogenicLog> {
+  const today = new Date().toISOString().split('T')[0];
+  const existing = await db.thermogenicLogs.where('date').equals(today).first();
+  if (existing) return existing;
+
+  return {
+    date: today,
+    blackCoffeeCups: 0,
+    preWorkoutDoses: 0,
+    totalThermogenicCaloriesBurned: 0
+  };
 }
 
 /**
@@ -109,7 +171,6 @@ export async function generateDefaultRoutines(frequencyDays: number): Promise<vo
   await db.routines.clear();
 
   if (frequencyDays <= 3) {
-    // 3 Dias: Full Body A / B / C
     await db.routines.bulkAdd([
       {
         name: 'Full Body A - Ênfase Peito & Quadríceps',
@@ -148,7 +209,6 @@ export async function generateDefaultRoutines(frequencyDays: number): Promise<vo
       }
     ]);
   } else if (frequencyDays === 4) {
-    // 4 Dias: Upper / Lower (A/B/A/B)
     await db.routines.bulkAdd([
       {
         name: 'Treino A - Superior (Upper 1)',
@@ -200,7 +260,6 @@ export async function generateDefaultRoutines(frequencyDays: number): Promise<vo
       }
     ]);
   } else {
-    // 5 a 6 Dias: Push / Pull / Legs
     await db.routines.bulkAdd([
       {
         name: 'Treino A - Push (Peito, Ombros e Tríceps)',
@@ -276,8 +335,8 @@ export async function generateInitialMealPlans(
 
     if (name.includes('Café') || name.includes('Colação')) {
       portions = [
-        { foodId: 'ovo_galinha_cozido', grams: 100, consumed: false }, // 2 ovos
-        { foodId: 'pao_forma_integral', grams: 50, consumed: false },  // 2 fatias
+        { foodId: 'ovo_galinha_cozido', grams: 100, consumed: false },
+        { foodId: 'pao_forma_integral', grams: 50, consumed: false },
         { foodId: 'banana_prata', grams: 70, consumed: false }
       ];
     } else if (name.includes('Almoço') || name.includes('Jantar')) {
@@ -296,7 +355,6 @@ export async function generateInitialMealPlans(
         { foodId: 'whey_protein_concentrado', grams: 20, consumed: false }
       ];
     } else {
-      // Ceia
       portions = [
         { foodId: 'queijo_cottage', grams: 100, consumed: false },
         { foodId: 'castanha_para', grams: 10, consumed: false }

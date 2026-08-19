@@ -3,10 +3,13 @@ import {
   Plus, 
   ShoppingBag, 
   Droplets, 
-  RotateCcw
+  RotateCcw,
+  Flame,
+  Zap,
+  Coffee
 } from 'lucide-react';
-import { MealPlan, UserProfile, MetabolicStats } from '../../core/storage/types';
-import { db } from '../../core/storage/db';
+import { MealPlan, UserProfile, MetabolicStats, DailyThermogenicLog } from '../../core/storage/types';
+import { db, getTodayThermogenicLog, updateTodayThermogenics } from '../../core/storage/db';
 import { FOOD_DATABASE_MAP } from '../../core/data/tacoDatabase';
 import { calculateFoodNutrients } from '../../core/math/macroSolver';
 import { MealCard } from './MealCard';
@@ -21,15 +24,24 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ stats }) => {
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
   const [isShoppingOpen, setIsShoppingOpen] = useState(false);
   const [waterDrunkMl, setWaterDrunkMl] = useState<number>(1500);
+  const [thermogenicLog, setThermogenicLog] = useState<DailyThermogenicLog>({
+    date: new Date().toISOString().split('T')[0],
+    blackCoffeeCups: 0,
+    preWorkoutDoses: 0,
+    totalThermogenicCaloriesBurned: 0
+  });
 
   const loadMeals = async () => {
     const plans = await db.mealPlans.orderBy('order').toArray();
     setMealPlans(plans);
+
+    const thermo = await getTodayThermogenicLog();
+    setThermogenicLog(thermo);
   };
 
   useEffect(() => {
     loadMeals();
-  }, []);
+  }, [stats.bmr]);
 
   const handleUpdateMeal = async (updated: MealPlan) => {
     if (updated.id) {
@@ -66,7 +78,23 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ stats }) => {
       }
     }
     setWaterDrunkMl(0);
+    const resetThermo = await updateTodayThermogenics(
+      -thermogenicLog.blackCoffeeCups,
+      -thermogenicLog.preWorkoutDoses,
+      stats.bmr
+    );
+    setThermogenicLog(resetThermo);
     loadMeals();
+  };
+
+  const handleCoffeeChange = async (delta: number) => {
+    const updated = await updateTodayThermogenics(delta, 0, stats.bmr);
+    setThermogenicLog(updated);
+  };
+
+  const handlePreWorkoutChange = async (delta: number) => {
+    const updated = await updateTodayThermogenics(0, delta, stats.bmr);
+    setThermogenicLog(updated);
   };
 
   // Calcula totais consumidos no dia
@@ -168,7 +196,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ stats }) => {
         </div>
 
         {/* Water Bar */}
-        <div className="pt-2 flex items-center justify-between gap-3 text-xs">
+        <div className="pt-2 flex items-center justify-between gap-3 text-xs border-t border-white/5">
           <div className="flex items-center gap-2">
             <Droplets className="w-4 h-4 text-cyan-400" />
             <span className="text-slate-300 font-medium">Água:</span>
@@ -190,6 +218,83 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ stats }) => {
             >
               +500ml
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Thermogenic & Stimulant Burn Tracker Card */}
+      <div className="p-4 rounded-3xl bg-gradient-to-r from-amber-950/30 via-slate-900 to-blue-950/30 border border-amber-500/20 shadow-xl space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-amber-400 font-bold text-xs">
+            <Flame className="w-4 h-4 fill-amber-400" />
+            <span className="uppercase tracking-wider">Termogênese Induzida por Estimulantes</span>
+          </div>
+          <span className="text-xs font-mono font-black text-amber-300">
+            +{thermogenicLog.totalThermogenicCaloriesBurned} kcal queimadas
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5">
+          {/* Coffee Tracker */}
+          <div className="p-3 rounded-2xl bg-slate-900/80 border border-white/5 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+                <Coffee className="w-4 h-4 text-amber-400" />
+                <span>Café Puro</span>
+              </div>
+              <span className="text-xs font-mono font-bold text-white">
+                {thermogenicLog.blackCoffeeCups}x
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400 leading-tight">
+              150ml sem açúcar (~100mg cafeína)
+            </p>
+            <div className="flex items-center gap-1 pt-1">
+              <button
+                onClick={() => handleCoffeeChange(-1)}
+                disabled={thermogenicLog.blackCoffeeCups <= 0}
+                className="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-xs font-bold text-slate-300 active:scale-95"
+              >
+                -1
+              </button>
+              <button
+                onClick={() => handleCoffeeChange(1)}
+                className="flex-1 py-1 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 text-xs font-bold text-amber-400 active:scale-95"
+              >
+                +1 ☕
+              </button>
+            </div>
+          </div>
+
+          {/* Pre-Workout Tracker */}
+          <div className="p-3 rounded-2xl bg-slate-900/80 border border-white/5 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+                <Zap className="w-4 h-4 text-blue-400 fill-blue-400" />
+                <span>Pré-Treino</span>
+              </div>
+              <span className="text-xs font-mono font-bold text-white">
+                {thermogenicLog.preWorkoutDoses} dose
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400 leading-tight">
+              10g (400mg caf + 2g taurina + beta)
+            </p>
+            <div className="flex items-center gap-1 pt-1">
+              <button
+                onClick={() => handlePreWorkoutChange(-1)}
+                disabled={thermogenicLog.preWorkoutDoses <= 0}
+                className="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-xs font-bold text-slate-300 active:scale-95"
+              >
+                -1
+              </button>
+              <button
+                onClick={() => handlePreWorkoutChange(1)}
+                className="flex-1 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-xs font-bold text-blue-400 active:scale-95"
+              >
+                +1 ⚡
+              </button>
+            </div>
           </div>
         </div>
       </div>

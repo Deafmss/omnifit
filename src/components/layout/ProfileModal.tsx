@@ -112,6 +112,46 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           </div>
         </div>
 
+        {/* Pre-Workout Exact Formulation */}
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-950/30 to-slate-900 border border-amber-500/20 space-y-2 text-xs">
+          <div className="flex items-center justify-between border-b border-white/5 pb-1.5">
+            <span className="font-bold text-amber-400 uppercase tracking-wider">
+              Fórmula de Pré-Treino Cadastrada
+            </span>
+            <span className="text-[10px] font-mono text-slate-400 font-bold">Dose 10g (Zero Açúcar)</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 text-slate-300 font-mono text-[11px] pt-1">
+            <div className="flex justify-between bg-black/30 p-1.5 rounded-lg">
+              <span className="text-slate-400">Cafeína:</span>
+              <strong className="text-white">400 mg</strong>
+            </div>
+            <div className="flex justify-between bg-black/30 p-1.5 rounded-lg">
+              <span className="text-slate-400">Taurina:</span>
+              <strong className="text-white">2000 mg</strong>
+            </div>
+            <div className="flex justify-between bg-black/30 p-1.5 rounded-lg">
+              <span className="text-slate-400">Beta-Alanina:</span>
+              <strong className="text-white">2000 mg</strong>
+            </div>
+            <div className="flex justify-between bg-black/30 p-1.5 rounded-lg">
+              <span className="text-slate-400">L-Arginina:</span>
+              <strong className="text-white">1000 mg</strong>
+            </div>
+            <div className="flex justify-between bg-black/30 p-1.5 rounded-lg">
+              <span className="text-slate-400">Sódio:</span>
+              <strong className="text-white">40 mg</strong>
+            </div>
+            <div className="flex justify-between bg-black/30 p-1.5 rounded-lg">
+              <span className="text-slate-400">Cromo:</span>
+              <strong className="text-white">35 mcg</strong>
+            </div>
+          </div>
+          <p className="text-[10px] text-slate-400 pt-1">
+            Vitaminas ativas: B5 (5.64mg), B6 (3.9mg), Vitamina E (30mg).
+          </p>
+        </div>
+
         {/* Re-calibrate / Reset Actions */}
         <div className="space-y-2 pt-2">
           <button

@@ -15,6 +15,21 @@ export type MuscleGroup =
   | 'triceps' 
   | 'abs';
 
+export interface PreWorkoutFormula {
+  name: string;
+  doseGrams: number;
+  caffeineMg: number;
+  taurineMg: number;
+  betaAlanineMg: number;
+  arginineMg: number;
+  sodiumMg: number;
+  vitaminB5Mg: number;
+  vitaminB6Mg: number;
+  vitaminEMg: number;
+  chromiumMcg: number;
+  zeroSugar: boolean;
+}
+
 export interface UserProfile {
   id?: number;
   name: string;
@@ -32,6 +47,7 @@ export interface UserProfile {
   excludedFoodIds: string[];
   preferredFoodIds: string[];
   isCalibrated: boolean;
+  preWorkoutFormula?: PreWorkoutFormula;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,6 +65,14 @@ export interface MetabolicStats {
   fiberGramsTarget: number;
   dailyDeficitOrSurplusKcal: number;
   expectedWeeklyWeightChangeKg: number;
+}
+
+export interface DailyThermogenicLog {
+  id?: number;
+  date: string; // YYYY-MM-DD
+  blackCoffeeCups: number; // 1 cup = 150ml ~100mg cafeina
+  preWorkoutDoses: number; // 1 dose = formula (400mg cafeina + taurina + beta-alanina)
+  totalThermogenicCaloriesBurned: number;
 }
 
 export interface FoodItem {
@@ -74,7 +98,7 @@ export interface MealFoodPortion {
 
 export interface MealPlan {
   id?: number;
-  name: string; // "Café da Manhã", "Almoço", etc.
+  name: string;
   order: number;
   targetProtein: number;
   targetCarbs: number;
@@ -100,7 +124,7 @@ export interface WorkoutSetLog {
   setNumber: number;
   weightKg: number;
   reps: number;
-  rpe?: number; // Rate of Perceived Exertion (6-10)
+  rpe?: number;
   completed: boolean;
 }
 
@@ -112,7 +136,7 @@ export interface WorkoutExerciseLog {
 
 export interface WorkoutRoutine {
   id?: number;
-  name: string; // e.g., "Treino A - Peito, Ombros e Tríceps"
+  name: string;
   splitCode: 'A' | 'B' | 'C' | 'D' | 'E';
   targetMuscles: MuscleGroup[];
   exercises: {
@@ -128,7 +152,7 @@ export interface WorkoutSessionLog {
   id?: number;
   routineId?: number;
   name: string;
-  date: string; // ISO date string
+  date: string;
   durationMinutes: number;
   caloriesBurnedEstimate: number;
   totalVolumeLoadKg: number;
@@ -138,9 +162,9 @@ export interface WorkoutSessionLog {
 
 export interface WeightLog {
   id?: number;
-  date: string; // YYYY-MM-DD
+  date: string;
   weightKg: number;
-  emaWeightKg?: number; // Exponential Moving Average smoothed
+  emaWeightKg?: number;
   bodyFatPercentage?: number;
   waistCircumferenceCm?: number;
   notes?: string;
@@ -150,8 +174,8 @@ export interface CheckInLog {
   id?: number;
   date: string;
   weightKg: number;
-  hungerRating: 1 | 2 | 3 | 4 | 5; // 1 = sem fome, 5 = faminto
-  energyRating: 1 | 2 | 3 | 4 | 5; // 1 = exausto, 5 = excelente
+  hungerRating: 1 | 2 | 3 | 4 | 5;
+  energyRating: 1 | 2 | 3 | 4 | 5;
   adherencePercentage: number;
   caloricAdjustmentSuggestedKcal: number;
   notes: string;
