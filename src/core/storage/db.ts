@@ -697,3 +697,72 @@ export async function generateInitialMealPlans(
 
   await db.mealPlans.bulkAdd(initialPlans);
 }
+
+/**
+ * Retorna estatísticas consolidadas de frequência e consistência de treinos.
+ */
+export async function getWorkoutFrequencyStats(targetWeeklyDays: number = 4) {
+  const sessions = await db.sessionLogs.where('completed').equals(1 as any).toArray().catch(async () => {
+    return (await db.sessionLogs.toArray()).filter((s) => s.completed);
+  });
+
+  const completedDates = new Set(sessions.map((s) => s.date));
+
+  // Cálculo da semana atual (Segunda a Domingo)
+  const now = new Date();
+  const currentDayOfWeek = now.getDay(); // 0 Dom, 1 Seg...
+  const distanceToMonday = (currentDayOfWeek + 6) % 7;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - distanceToMonday);
+
+  const currentWeekDates: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    currentWeekDates.push(d.toISOString().split('T')[0]);
+  }
+
+  const thisWeekDaysCount = currentWeekDates.filter((dt) => completedDates.has(dt)).length;
+
+  // Cálculo do mês atual
+  const currentMonthPrefix = now.toISOString().slice(0, 7); // YYYY-MM
+  const thisMonthDaysCount = Array.from(completedDates).filter((dt) => dt.startsWith(currentMonthPrefix)).length;
+
+  // Streak de dias ou consistência
+  let currentStreak = 0;
+  const checkDate = new Date(now);
+  const todayStr = checkDate.toISOString().split('T')[0];
+
+  // Se treinou hoje ou ontem, o streak está vivo
+  if (completedDates.has(todayStr)) {
+    currentStreak++;
+    checkDate.setDate(checkDate.getDate() - 1);
+  } else {
+    checkDate.setDate(checkDate.getDate() - 1);
+    if (completedDates.has(checkDate.toISOString().split('T')[0])) {
+      currentStreak++;
+      checkDate.setDate(checkDate.getDate() - 1);
+    }
+  }
+
+  while (completedDates.has(checkDate.toISOString().split('T')[0])) {
+    currentStreak++;
+    checkDate.setDate(checkDate.getDate() - 1);
+  }
+
+  const totalVolumeLiftedKg = sessions.reduce((acc, s) => acc + (s.totalVolumeLoadKg || 0), 0);
+  const totalCaloriesBurned = sessions.reduce((acc, s) => acc + (s.caloriesBurnedEstimate || 0), 0);
+
+  return {
+    sessions,
+    completedDates,
+    currentStreak,
+    thisWeekDaysCount,
+    thisMonthDaysCount,
+    targetWeeklyDays,
+    weeklyAdherencePercent: Math.min(100, Math.round((thisWeekDaysCount / Math.max(1, targetWeeklyDays)) * 100)),
+    totalCompletedSessions: sessions.length,
+    totalVolumeLiftedKg,
+    totalCaloriesBurned
+  };
+}

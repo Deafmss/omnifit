@@ -12,7 +12,7 @@ import {
   Sparkles, 
   BedDouble 
 } from 'lucide-react';
-import { WorkoutRoutine, UserProfile, Exercise } from '../../core/storage/types';
+import { WorkoutRoutine, UserProfile, Exercise, WorkoutSessionLog } from '../../core/storage/types';
 import { db, applySplitTemplate, addNewRoutine, deleteRoutine, SplitTemplateType } from '../../core/storage/db';
 import { EXERCISE_DATABASE_MAP } from '../../core/data/exerciseDatabase';
 import { MUSCLE_LABELS } from '../../core/math/trainingEngine';
@@ -20,6 +20,7 @@ import { ActiveWorkoutModal } from './ActiveWorkoutModal';
 import { WorkoutAuditorModal } from './WorkoutAuditorModal';
 import { ExerciseSelectorModal } from './ExerciseSelectorModal';
 import { SplitTemplateModal } from './SplitTemplateModal';
+import { WorkoutFrequencyTracker } from './WorkoutFrequencyTracker';
 
 interface WorkoutSplitViewProps {
   profile: UserProfile;
@@ -40,6 +41,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
   const [selectedDay, setSelectedDay] = useState<number>(todayDayIndex);
 
   const [routines, setRoutines] = useState<WorkoutRoutine[]>([]);
+  const [sessionLogs, setSessionLogs] = useState<WorkoutSessionLog[]>([]);
   const [activeRoutineToStart, setActiveRoutineToStart] = useState<WorkoutRoutine | null>(null);
   const [isAuditorOpen, setIsAuditorOpen] = useState<boolean>(false);
   const [isAddExerciseOpen, setIsAddExerciseOpen] = useState<boolean>(false);
@@ -49,7 +51,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
   const [isEditingTitle, setIsEditingTitle] = useState<boolean>(false);
   const [tempTitle, setTempTitle] = useState<string>('');
 
-  const loadRoutines = async () => {
+  const loadData = async () => {
     const list = await db.routines.toArray();
     for (let i = 0; i < list.length; i++) {
       if (list[i].dayOfWeek === undefined) {
@@ -60,11 +62,34 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
       }
     }
     setRoutines(list);
+
+    const logs = await db.sessionLogs.toArray();
+    setSessionLogs(logs);
   };
 
   useEffect(() => {
-    loadRoutines();
+    loadData();
   }, []);
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todayCompletedLog = sessionLogs.find((s) => s.date === todayStr && s.completed);
+
+  // Mapa de dias da semana atual que têm treino concluído
+  const now = new Date();
+  const currentDayOfWeek = now.getDay();
+  const distanceToMonday = (currentDayOfWeek + 6) % 7;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - distanceToMonday);
+
+  const currentWeekDatesMap = new Map<number, boolean>();
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    const dayIdx = d.getDay();
+    const dStr = d.toISOString().split('T')[0];
+    const isDone = sessionLogs.some((s) => s.date === dStr && s.completed);
+    currentWeekDatesMap.set(dayIdx, isDone);
+  }
 
   // Encontra a rotina correspondente ao dia selecionado
   const currentRoutine = routines.find((r) => r.dayOfWeek === selectedDay);
@@ -72,19 +97,19 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
 
   const handleApplyTemplate = async (templateId: SplitTemplateType) => {
     await applySplitTemplate(templateId);
-    await loadRoutines();
+    await loadData();
   };
 
   const handleCreateRoutineForSelectedDay = async () => {
     await addNewRoutine(`Treino de ${currentDayInfo.full}`, undefined, selectedDay);
-    await loadRoutines();
+    await loadData();
   };
 
   const handleDeleteSplit = async (routineId?: number) => {
     if (!routineId) return;
     if (confirm(`Tem certeza que deseja desvincular ou excluir o treino deste dia?`)) {
       await deleteRoutine(routineId);
-      await loadRoutines();
+      await loadData();
     }
   };
 
@@ -96,7 +121,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
     }
 
     await db.routines.update(currentRoutine.id, { name: tempTitle.trim() });
-    await loadRoutines();
+    await loadData();
     setIsEditingTitle(false);
   };
 
@@ -128,14 +153,14 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
       exercises: newExercises,
       targetMuscles: newTargetMuscles
     });
-    loadRoutines();
+    loadData();
   };
 
   const handleRemoveExercise = async (index: number) => {
     if (!currentRoutine?.id) return;
     const newExercises = currentRoutine.exercises.filter((_, i) => i !== index);
     await db.routines.update(currentRoutine.id, { exercises: newExercises });
-    loadRoutines();
+    loadData();
   };
 
   const handleUpdateExerciseConfig = async (
@@ -158,7 +183,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
     };
 
     await db.routines.update(currentRoutine.id, { exercises: newExercises });
-    loadRoutines();
+    loadData();
   };
 
   return (
@@ -168,20 +193,20 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => setIsTemplateModalOpen(true)}
-            className="px-3 py-1.5 rounded-xl bg-blue-600/15 border border-blue-500/30 text-blue-400 hover:bg-blue-600/25 text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile shadow-sm"
+            className="px-3 py-1.5 rounded-xl bg-[#090F1E] border border-white/[0.08] hover:border-[#84CC16]/50 text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile shadow-sm font-mono"
             title="Trocar Divisão de Treino (PPL, ABCDE, Upper/Lower, Full Body...)"
           >
-            <Layers className="w-3.5 h-3.5" />
+            <Layers className="w-3.5 h-3.5 text-[#A3E635]" />
             <span>Divisões de Treino</span>
           </button>
         </div>
 
         <button
           onClick={() => setIsAuditorOpen(true)}
-          className="p-1.5 px-2.5 rounded-xl bg-[#090F1E] border border-white/[0.08] text-slate-300 hover:text-emerald-400 text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile"
+          className="p-1.5 px-2.5 rounded-xl bg-[#090F1E] border border-white/[0.08] text-slate-300 hover:text-[#A3E635] text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile font-mono"
           title="Auditar Volume MAV/MRV"
         >
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+          <ShieldCheck className="w-3.5 h-3.5 text-[#A3E635]" />
           <span className="hidden sm:inline">Auditar Volume</span>
         </button>
       </div>
@@ -193,6 +218,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
             const isToday = d.dayIndex === todayDayIndex;
             const isSelected = d.dayIndex === selectedDay;
             const hasRoutine = routines.some((r) => r.dayOfWeek === d.dayIndex);
+            const isDayCompleted = currentWeekDatesMap.get(d.dayIndex);
 
             return (
               <button
@@ -201,9 +227,11 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
                   setSelectedDay(d.dayIndex);
                   setIsEditingTitle(false);
                 }}
-                className={`py-2 px-1 rounded-2xl flex flex-col items-center justify-center transition-all relative btn-tactile ${
+                className={`py-2 px-1 rounded-2xl flex flex-col items-center justify-between transition-all relative btn-tactile ${
                   isSelected
                     ? 'btn-lime text-slate-950 shadow-md font-black scale-[1.03]'
+                    : isDayCompleted
+                    ? 'bg-[#84CC16]/15 border border-[#84CC16]/40 text-[#A3E635]'
                     : isToday
                     ? 'bg-[#060A14] border border-[#84CC16]/60 text-[#A3E635]'
                     : 'bg-[#060A14] border border-white/[0.04] text-slate-400 hover:text-white'
@@ -213,9 +241,13 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
                   {d.short}
                 </span>
 
-                {/* Indicator Dot */}
-                <div className="mt-1 flex items-center gap-0.5">
-                  {hasRoutine ? (
+                {/* Indicator Dot or Check */}
+                <div className="mt-1 flex items-center justify-center">
+                  {isDayCompleted ? (
+                    <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center ${isSelected ? 'bg-slate-950 text-[#A3E635]' : 'bg-[#84CC16] text-slate-950'}`}>
+                      <Check className="w-2.5 h-2.5 stroke-[3]" />
+                    </div>
+                  ) : hasRoutine ? (
                     <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-slate-950' : 'bg-[#A3E635]'}`} />
                   ) : (
                     <span className="w-1.5 h-1.5 rounded-full bg-slate-700" />
@@ -223,8 +255,8 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
                 </div>
 
                 {/* Today Badge */}
-                {isToday && !isSelected && (
-                  <span className="absolute -top-1 px-1 rounded-full bg-[#84CC16] text-slate-950 text-[7px] font-black uppercase">
+                {isToday && !isSelected && !isDayCompleted && (
+                  <span className="absolute -top-1 px-1 rounded-full bg-[#84CC16] text-slate-950 text-[7px] font-black uppercase font-mono">
                     Hoje
                   </span>
                 )}
@@ -244,7 +276,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
             <div className="flex items-start justify-between relative z-10 gap-3">
               <div className="space-y-1 min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="px-2.5 py-0.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 rounded-full text-[10px] font-extrabold uppercase tracking-wider font-mono flex items-center gap-1">
+                  <span className="px-2.5 py-0.5 bg-[#84CC16]/15 border border-[#84CC16]/30 text-[#A3E635] rounded-full text-[10px] font-extrabold uppercase tracking-wider font-mono flex items-center gap-1">
                     <Calendar className="w-3 h-3" />
                     <span>{currentDayInfo.full}</span>
                   </span>
@@ -272,15 +304,15 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
                       type="text"
                       value={tempTitle}
                       onChange={(e) => setTempTitle(e.target.value)}
-                      className="w-full px-2.5 py-1 bg-slate-950 border border-emerald-500 rounded-xl text-sm font-extrabold text-white font-display focus:outline-none"
+                      className="w-full px-2.5 py-1 bg-slate-950 border border-[#84CC16] rounded-xl text-sm font-extrabold text-white font-display focus:outline-none"
                       autoFocus
                       onBlur={() => handleSaveTitle()}
                     />
                     <button
                       type="submit"
-                      className="p-1.5 rounded-xl bg-emerald-500 text-slate-950 font-bold btn-tactile"
+                      className="p-1.5 rounded-xl btn-lime text-slate-950 font-bold"
                     >
-                      <Check className="w-4 h-4" />
+                      <Check className="w-4 h-4 stroke-[3]" />
                     </button>
                   </form>
                 ) : (
@@ -309,6 +341,28 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
                 </p>
               </div>
             </div>
+
+            {/* Celebratory Completed Banner for Today */}
+            {selectedDay === todayDayIndex && todayCompletedLog && (
+              <div className="p-3.5 rounded-2xl bg-[#84CC16]/15 border border-[#84CC16]/40 flex items-center justify-between animate-in zoom-in-95">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-[#84CC16] text-slate-950 flex items-center justify-center font-black shadow-md">
+                    <Check className="w-5 h-5 stroke-[3]" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-extrabold text-white font-display">
+                      Treino de Hoje Concluído! 🏆
+                    </h4>
+                    <p className="text-[11px] text-[#A3E635] font-mono font-bold">
+                      +{todayCompletedLog.caloriesBurnedEstimate} kcal &bull; {(todayCompletedLog.totalVolumeLoadKg / 1000).toFixed(1)}t levantadas
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[10px] px-2.5 py-1 rounded-full bg-[#84CC16] text-slate-950 font-black font-mono uppercase shadow-sm">
+                  Concluído
+                </span>
+              </div>
+            )}
 
             {/* Metric Pills (UI Kit Style) */}
             <div className="grid grid-cols-3 gap-2 py-1">
@@ -341,16 +395,26 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
             </div>
 
             {/* High-Impact Electric Lime Button (Gym UI Kit Style) */}
-            <button
-              onClick={() => setActiveRoutineToStart(currentRoutine)}
-              disabled={currentRoutine.exercises.length === 0}
-              className="w-full py-4 px-4 rounded-2xl btn-lime text-slate-950 font-display font-black text-sm uppercase tracking-wider shadow-lg shadow-lime-500/20 hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Play className="w-4 h-4 fill-current" />
-              <span>
-                {selectedDay === todayDayIndex ? 'Iniciar Treino de Hoje' : `Iniciar Treino de ${currentDayInfo.short}`}
-              </span>
-            </button>
+            {selectedDay === todayDayIndex && todayCompletedLog ? (
+              <button
+                onClick={() => setActiveRoutineToStart(currentRoutine)}
+                className="w-full py-3.5 px-4 rounded-2xl bg-[#060A14] border border-[#84CC16]/60 text-[#A3E635] hover:bg-[#84CC16]/10 font-display font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2"
+              >
+                <Check className="w-4 h-4 stroke-[3]" />
+                <span>✓ Treino Concluído Hoje (Treinar Novamente)</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setActiveRoutineToStart(currentRoutine)}
+                disabled={currentRoutine.exercises.length === 0}
+                className="w-full py-4 px-4 rounded-2xl btn-lime text-slate-950 font-display font-black text-sm uppercase tracking-wider shadow-lg shadow-lime-500/20 hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Play className="w-4 h-4 fill-current" />
+                <span>
+                  {selectedDay === todayDayIndex ? 'Iniciar Treino de Hoje' : `Iniciar Treino de ${currentDayInfo.short}`}
+                </span>
+              </button>
+            )}
           </div>
 
           {/* Exercises Header */}
@@ -361,7 +425,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
 
             <button
               onClick={() => setIsAddExerciseOpen(true)}
-              className="px-3 py-1.5 rounded-xl bg-blue-600/15 border border-blue-500/30 text-blue-400 hover:bg-blue-600/25 text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile"
+              className="px-3 py-1.5 rounded-xl bg-[#84CC16]/15 border border-[#84CC16]/30 text-[#A3E635] hover:bg-[#84CC16]/25 text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile font-mono"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Adicionar Exercício</span>
@@ -449,7 +513,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
       ) : (
         /* Rest Day (Descanso & Recuperação) Card */
         <div className="p-8 rounded-3xl bg-[#090F1E] border border-white/[0.08] shadow-xl text-center space-y-4 animate-in fade-in">
-          <div className="w-14 h-14 rounded-3xl bg-blue-600/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mx-auto shadow-inner">
+          <div className="w-14 h-14 rounded-3xl bg-[#84CC16]/15 border border-[#84CC16]/30 text-[#A3E635] flex items-center justify-center mx-auto shadow-inner">
             <BedDouble className="w-7 h-7" />
           </div>
 
@@ -467,7 +531,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
 
           <button
             onClick={handleCreateRoutineForSelectedDay}
-            className="py-3 px-5 rounded-2xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-400 font-extrabold text-xs transition-all inline-flex items-center gap-2 btn-tactile"
+            className="py-3 px-5 rounded-2xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider transition-all inline-flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
             <span>Adicionar Treino para {currentDayInfo.full}</span>
@@ -475,11 +539,19 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
         </div>
       )}
 
+      {/* Tabela de Frequência & Consistência (Motivação do Usuário) */}
+      <div className="pt-2">
+        <WorkoutFrequencyTracker targetWeeklyDays={profile.trainingDaysPerWeek || 4} />
+      </div>
+
       {/* Modais */}
       {activeRoutineToStart && (
         <ActiveWorkoutModal
           isOpen={true}
-          onClose={() => setActiveRoutineToStart(null)}
+          onClose={() => {
+            setActiveRoutineToStart(null);
+            loadData();
+          }}
           routine={activeRoutineToStart}
           profile={profile}
         />
