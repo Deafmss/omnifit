@@ -126,7 +126,7 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
             {(totalTonnageKg / 1000).toFixed(1)} <span className="text-xs text-slate-400 font-normal">toneladas</span>
           </h3>
           <p className="text-[10px] text-slate-400 font-mono">
-            <strong className="text-white">{totalWorkouts}</strong> sessões concluídas
+            <strong className="text-white">{totalWorkouts}</strong> {totalWorkouts === 1 ? 'sessão concluída' : 'sessões concluídas'}
           </p>
         </div>
       </div>
