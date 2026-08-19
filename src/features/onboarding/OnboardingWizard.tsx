@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import confetti from 'canvas-confetti';
 import { 
   User, 
-  Activity, 
   Target, 
   Dumbbell, 
   Utensils, 
@@ -10,7 +9,9 @@ import {
   ArrowLeft, 
   CheckCircle2, 
   Sparkles,
-  Zap
+  Zap,
+  Smile,
+  ShieldCheck
 } from 'lucide-react';
 import { UserProfile, Gender, ExperienceLevel, FitnessGoal, DietMode } from '../../core/storage/types';
 import { calculateMetabolicStats } from '../../core/math/metabolism';
@@ -21,6 +22,8 @@ interface OnboardingWizardProps {
   initialProfile?: UserProfile;
 }
 
+type BodyShapeArchetype = 'overweight' | 'slightly_above' | 'moderate' | 'lean' | 'athletic';
+
 export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, initialProfile }) => {
   const [step, setStep] = useState<number>(1);
 
@@ -30,7 +33,11 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
   const [gender, setGender] = useState<Gender>(initialProfile?.gender || 'male');
   const [heightCm, setHeightCm] = useState<number | string>(initialProfile?.heightCm ?? 178);
   const [weightKg, setWeightKg] = useState<number | string>(initialProfile?.weightKg ?? 80);
-  const [bodyFatPercentage, setBodyFatPercentage] = useState<number | undefined>(initialProfile?.bodyFatPercentage || 18);
+  
+  // Triagem humanizada de corpo
+  const [selectedArchetype, setSelectedArchetype] = useState<BodyShapeArchetype>('overweight');
+  const [showExactBfInput, setShowExactBfInput] = useState<boolean>(false);
+  const [exactBf, setExactBf] = useState<number | string>('');
   
   const [goal, setGoal] = useState<FitnessGoal>(initialProfile?.goal || 'recomposition');
   const [experienceLevel, setExperienceLevel] = useState<ExperienceLevel>(initialProfile?.experienceLevel || 'intermediate');
@@ -42,12 +49,33 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
 
   const [isSaving, setIsSaving] = useState(false);
 
+  // Mapeia o arquétipo para uma estimativa interna suave
+  const getEstimatedBf = (): number | undefined => {
+    if (showExactBfInput && exactBf !== '') {
+      const parsed = Number(exactBf);
+      if (parsed > 3 && parsed < 60) return parsed;
+    }
+
+    const archetypeMap: Record<BodyShapeArchetype, { male: number; female: number }> = {
+      overweight: { male: 26, female: 34 },
+      slightly_above: { male: 21, female: 28 },
+      moderate: { male: 16, female: 23 },
+      lean: { male: 12, female: 19 },
+      athletic: { male: 10, female: 16 }
+    };
+
+    return gender === 'male' 
+      ? archetypeMap[selectedArchetype].male 
+      : archetypeMap[selectedArchetype].female;
+  };
+
   const handleFinish = async () => {
     setIsSaving(true);
     try {
       const sanitizedAge = typeof age === 'number' && age > 0 ? age : Number(age) || 26;
       const sanitizedHeight = typeof heightCm === 'number' && heightCm > 0 ? heightCm : Number(heightCm) || 178;
       const sanitizedWeight = typeof weightKg === 'number' && weightKg > 0 ? weightKg : Number(weightKg) || 80;
+      const calculatedBf = getEstimatedBf();
 
       const profileData: UserProfile = {
         name: name.trim() || 'Usuário',
@@ -55,7 +83,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
         gender,
         heightCm: sanitizedHeight,
         weightKg: sanitizedWeight,
-        bodyFatPercentage,
+        bodyFatPercentage: calculatedBf,
         goal,
         experienceLevel,
         trainingDaysPerWeek,
@@ -70,7 +98,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
       };
 
       await saveProfile(profileData);
-      await logWeightEntry(new Date().toISOString().split('T')[0], sanitizedWeight, bodyFatPercentage);
+      await logWeightEntry(new Date().toISOString().split('T')[0], sanitizedWeight, calculatedBf);
 
       // Calcula as metas calóricas determinísticas
       const stats = calculateMetabolicStats(profileData);
@@ -220,63 +248,116 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
         )}
 
         {step === 2 && (
-          <div className="space-y-5 animate-in fade-in duration-300">
+          <div className="space-y-4 animate-in fade-in duration-300">
             <div className="space-y-1">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mb-3">
-                <Activity className="w-6 h-6" />
+              <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mb-2">
+                <Smile className="w-6 h-6" />
               </div>
               <h2 className="text-2xl font-extrabold text-white tracking-tight font-display">
-                Percentual de Gordura (%BF)
+                Como você sente seu corpo hoje?
               </h2>
-              <p className="text-sm text-slate-400">
-                Permite usar a fórmula de <strong>Katch-McArdle</strong> (precisão máxima sobre massa magra).
+              <p className="text-xs text-slate-400">
+                Selecione a opção que mais se aproxima de como você se vê no espelho:
               </p>
             </div>
 
-            <div className="p-4 rounded-2xl bg-[#0D1527] border border-white/10 space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                  Estimativa Visual
-                </span>
-                <span className="text-lg font-black text-emerald-400 font-mono">
-                  {bodyFatPercentage || 18}%
-                </span>
-              </div>
+            {/* Human Body Archetype Cards */}
+            <div className="space-y-2.5">
+              {[
+                {
+                  id: 'overweight',
+                  title: 'Estou com sobrepeso / Barriga aparente',
+                  desc: 'Quero focar na queima de gordura e perder medidas abdominais.',
+                  badge: 'Foco Queima'
+                },
+                {
+                  id: 'slightly_above',
+                  title: 'Um pouco acima do peso / Pochete leve',
+                  desc: 'Gordura localizada nos flancos e cintura, quero secar e tonificar.',
+                  badge: 'Recomposição'
+                },
+                {
+                  id: 'moderate',
+                  title: 'Peso equilibrado / Moderado',
+                  desc: 'Sem excesso aparente, busco melhorar o condicionamento e formato do corpo.',
+                  badge: 'Equilíbrio'
+                },
+                {
+                  id: 'lean',
+                  title: 'Magro / Pouca gordura e pouca massa',
+                  desc: 'Quero preencher o corpo e construir massa muscular.',
+                  badge: 'Hipertrofia'
+                },
+                {
+                  id: 'athletic',
+                  title: 'Já tenho músculos / Atlético',
+                  desc: 'Tenho boa base muscular e quero lapidar ou aumentar performance.',
+                  badge: 'Avançado'
+                }
+              ].map((item) => {
+                const isSelected = selectedArchetype === item.id && !showExactBfInput;
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => {
+                      setSelectedArchetype(item.id as BodyShapeArchetype);
+                      setShowExactBfInput(false);
+                    }}
+                    className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-center justify-between gap-3 ${
+                      isSelected
+                        ? 'bg-emerald-600/15 border-emerald-500 text-white shadow-md shadow-emerald-500/10'
+                        : 'bg-[#0D1527] border-white/5 text-slate-300 hover:border-white/20'
+                    }`}
+                  >
+                    <div className="space-y-0.5 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-xs text-white truncate">{item.title}</span>
+                        <span className="px-2 py-0.5 bg-white/5 text-slate-400 rounded-full text-[9px] font-bold uppercase shrink-0">
+                          {item.badge}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-snug">{item.desc}</p>
+                    </div>
 
-              <input
-                type="range"
-                min={gender === 'male' ? 6 : 12}
-                max={gender === 'male' ? 35 : 45}
-                value={bodyFatPercentage || 18}
-                onChange={(e) => setBodyFatPercentage(Number(e.target.value))}
-                className="w-full accent-emerald-500 cursor-pointer"
-              />
+                    {isSelected && <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />}
+                  </div>
+                );
+              })}
+            </div>
 
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div 
-                  onClick={() => setBodyFatPercentage(gender === 'male' ? 10 : 18)}
-                  className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                    (bodyFatPercentage || 18) <= (gender === 'male' ? 12 : 20)
-                      ? 'bg-emerald-500/20 border-emerald-500 text-white'
-                      : 'bg-slate-900 border-white/5 text-slate-400'
-                  }`}
+            {/* Reassurance Banner */}
+            <div className="p-3 rounded-xl bg-slate-900/60 border border-white/5 flex items-start gap-2.5 text-[11px] text-slate-400">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <span>
+                Não precisa se preocupar com números exatos. O motor calcula suas calorias diretamente a partir do seu peso e altura reais.
+              </span>
+            </div>
+
+            {/* Subtle Advanced Option */}
+            <div className="text-center pt-1">
+              {!showExactBfInput ? (
+                <button
+                  type="button"
+                  onClick={() => setShowExactBfInput(true)}
+                  className="text-[11px] text-slate-500 hover:text-slate-300 underline font-medium transition-colors"
                 >
-                  <p className="font-bold text-slate-200">Atlético / Definido</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">{gender === 'male' ? '8% - 12%' : '16% - 20%'}</p>
+                  Fez exame de bioimpedância e quer digitar o número exato?
+                </button>
+              ) : (
+                <div className="p-3 rounded-xl bg-slate-900 border border-white/10 space-y-2 animate-in fade-in">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-300 font-bold">Percentual de Gordura do Exame (%):</span>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={exactBf}
+                      onChange={(e) => setExactBf(e.target.value === '' ? '' : Number(e.target.value))}
+                      placeholder="Ex: 22.5"
+                      className="w-20 px-2 py-1 bg-slate-950 border border-emerald-500 rounded text-center text-xs font-bold text-white font-mono"
+                    />
+                  </div>
                 </div>
-
-                <div 
-                  onClick={() => setBodyFatPercentage(gender === 'male' ? 16 : 24)}
-                  className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                    (bodyFatPercentage || 18) > (gender === 'male' ? 12 : 20) && (bodyFatPercentage || 18) <= (gender === 'male' ? 20 : 28)
-                      ? 'bg-emerald-500/20 border-emerald-500 text-white'
-                      : 'bg-slate-900 border-white/5 text-slate-400'
-                  }`}
-                >
-                  <p className="font-bold text-slate-200">Moderado / Saudável</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">{gender === 'male' ? '13% - 20%' : '21% - 28%'}</p>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         )}
