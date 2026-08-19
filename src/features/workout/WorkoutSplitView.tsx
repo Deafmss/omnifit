@@ -20,7 +20,6 @@ import { ActiveWorkoutModal } from './ActiveWorkoutModal';
 import { WorkoutAuditorModal } from './WorkoutAuditorModal';
 import { ExerciseSelectorModal } from './ExerciseSelectorModal';
 import { SplitTemplateModal } from './SplitTemplateModal';
-import { WorkoutFrequencyTracker } from './WorkoutFrequencyTracker';
 
 interface WorkoutSplitViewProps {
   profile: UserProfile;
@@ -538,11 +537,6 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
           </button>
         </div>
       )}
-
-      {/* Tabela de Frequência & Consistência (Motivação do Usuário) */}
-      <div className="pt-2">
-        <WorkoutFrequencyTracker targetWeeklyDays={profile.trainingDaysPerWeek || 4} />
-      </div>
 
       {/* Modais */}
       {activeRoutineToStart && (
