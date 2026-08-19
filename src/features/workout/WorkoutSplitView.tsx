@@ -7,7 +7,7 @@ import {
   Pencil, 
   Check, 
   Layers, 
-  Clock, 
+  Dumbbell, 
   Calendar, 
   Sparkles, 
   BedDouble 
@@ -387,58 +387,55 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
                 return (
                   <div
                     key={`${item.exerciseId}-${idx}`}
-                    className="p-3.5 rounded-2xl bg-[#090F1E] border border-white/[0.08] shadow-sm flex items-center justify-between gap-3 hover:border-white/[0.14] transition-all"
+                    className="p-3.5 rounded-3xl bg-[#090F1E] border border-white/[0.08] shadow-sm flex items-center justify-between gap-3 hover:border-white/[0.14] transition-all group"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-xl bg-[#060A14] border border-white/[0.06] flex items-center justify-center text-xs font-black text-slate-400 font-mono shrink-0">
-                        {idx + 1}
+                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                      {/* Exercise Thumbnail Icon */}
+                      <div className="w-11 h-11 rounded-2xl bg-[#060A14] border border-white/[0.08] flex items-center justify-center text-xs font-black text-slate-300 font-mono shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+                        <Dumbbell className="w-5 h-5 text-[#A3E635]" />
                       </div>
 
-                      <div className="min-w-0">
-                        <h4 className="font-bold text-xs text-slate-100 truncate">
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-extrabold text-sm text-white truncate tracking-tight">
                           {exercise.name}
                         </h4>
                         
-                        {/* Configuração Rápida de Séries & Reps */}
-                        <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono mt-1">
-                          {/* Sets Stepper */}
-                          <div className="flex items-center gap-1 bg-[#060A14] px-1.5 py-0.5 rounded-lg border border-white/5">
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateExerciseConfig(idx, -1, 0, 0)}
-                              className="text-slate-400 hover:text-white font-bold px-0.5"
-                            >
-                              -
-                            </button>
-                            <span className="text-emerald-400 font-bold px-0.5">{item.targetSets} séries</span>
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateExerciseConfig(idx, 1, 0, 0)}
-                              className="text-slate-400 hover:text-white font-bold px-0.5"
-                            >
-                              +
-                            </button>
-                          </div>
-
-                          {/* Reps */}
-                          <span>&bull;</span>
-                          <span>{item.minReps}-{item.maxReps} reps</span>
-
-                          {/* Rest */}
-                          <span>&bull;</span>
-                          <span className="flex items-center gap-0.5 text-slate-400">
-                            <Clock className="w-2.5 h-2.5 text-blue-400" />
-                            <span>{item.restSeconds}s</span>
+                        <div className="flex items-center gap-2 text-xs text-slate-400 font-mono mt-0.5">
+                          <span className="font-bold text-slate-200">
+                            {item.targetSets} Séries &times; {item.minReps}-{item.maxReps} Reps
                           </span>
+                          <span>&bull;</span>
+                          <span className="text-slate-500">{item.restSeconds}s descanso</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Quick Stepper & Remove */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-1 bg-[#060A14] px-2 py-1 rounded-xl border border-white/5">
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateExerciseConfig(idx, -1, 0, 0)}
+                          className="text-slate-400 hover:text-white font-bold px-1"
+                          title="Diminuir séries"
+                        >
+                          -
+                        </button>
+                        <span className="text-[#A3E635] font-bold px-1 text-xs font-mono">{item.targetSets}s</span>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateExerciseConfig(idx, 1, 0, 0)}
+                          className="text-slate-400 hover:text-white font-bold px-1"
+                          title="Aumentar séries"
+                        >
+                          +
+                        </button>
+                      </div>
+
                       <button
                         onClick={() => handleRemoveExercise(idx)}
-                        className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all btn-tactile"
-                        title="Remover"
+                        className="p-2 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all btn-tactile"
+                        title="Remover Exercício"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>

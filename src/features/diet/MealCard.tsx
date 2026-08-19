@@ -4,13 +4,10 @@ import {
   Trash2, 
   Repeat, 
   Check, 
-  Edit2, 
-  X,
-  Clock,
-  ChevronDown,
-  ChevronUp,
-  CheckCircle2,
-  Pencil
+  ChevronDown, 
+  ChevronUp, 
+  Pencil, 
+  Clock 
 } from 'lucide-react';
 import { MealPlan, FoodItem } from '../../core/storage/types';
 import { FOOD_DATABASE_MAP } from '../../core/data/tacoDatabase';
@@ -27,6 +24,16 @@ interface MealCardProps {
   onDeleteMeal?: (id: number) => void;
 }
 
+const getMealEmoji = (name: string, index: number) => {
+  const n = name.toLowerCase();
+  if (n.includes('café') || n.includes('manhã') || n.includes('breakfast')) return '🍳';
+  if (n.includes('almoço') || n.includes('lunch')) return '🥗';
+  if (n.includes('lanche') || n.includes('snack') || n.includes('tarde')) return '🥪';
+  if (n.includes('jantar') || n.includes('janta') || n.includes('dinner')) return '🍲';
+  if (n.includes('ceia') || n.includes('bedtime')) return '🥛';
+  return index === 0 ? '🍳' : index === 1 ? '🥗' : index === 2 ? '🥪' : '🍲';
+};
+
 export const MealCard: React.FC<MealCardProps> = ({
   meal,
   timeLabel,
@@ -35,7 +42,7 @@ export const MealCard: React.FC<MealCardProps> = ({
   onUpdateMeal,
   onDeleteMeal
 }) => {
-  const [internalCollapsed, setInternalCollapsed] = useState(false);
+  const [internalCollapsed, setInternalCollapsed] = useState(true);
   const isCollapsed = controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed;
 
   const toggleCollapse = () => {
@@ -48,8 +55,6 @@ export const MealCard: React.FC<MealCardProps> = ({
 
   const [swapState, setSwapState] = useState<{ originalFoodId: string; originalGrams: number } | null>(null);
   const [isAddFoodOpen, setIsAddFoodOpen] = useState(false);
-  const [editingGramsIndex, setEditingGramsIndex] = useState<number | null>(null);
-  const [tempGrams, setTempGrams] = useState<number | string>(100);
 
   // Estados de edição do nome e do horário da refeição
   const [isEditingName, setIsEditingName] = useState(false);
@@ -90,14 +95,6 @@ export const MealCard: React.FC<MealCardProps> = ({
     onUpdateMeal({ ...meal, portions: newPortions });
   };
 
-  const handleSaveGrams = (index: number) => {
-    const newPortions = [...meal.portions];
-    const cleanGrams = typeof tempGrams === 'number' && tempGrams > 0 ? tempGrams : Number(tempGrams) || 100;
-    newPortions[index].grams = Math.max(1, cleanGrams);
-    onUpdateMeal({ ...meal, portions: newPortions });
-    setEditingGramsIndex(null);
-  };
-
   const handleAdjustHouseholdUnits = (index: number, delta: number, servingGrams: number) => {
     const newPortions = [...meal.portions];
     const currentGrams = newPortions[index].grams;
@@ -125,326 +122,254 @@ export const MealCard: React.FC<MealCardProps> = ({
   };
 
   const displayTime = meal.timeLabel || timeLabel;
+  const foodSummaryText = meal.portions.length > 0
+    ? meal.portions
+        .map((p) => FOOD_DATABASE_MAP.get(p.foodId)?.name)
+        .filter(Boolean)
+        .slice(0, 3)
+        .join(', ') + (meal.portions.length > 3 ? '...' : '')
+    : 'Nenhum alimento cadastrado';
 
   return (
-    <div className={`rounded-3xl bg-[#090F1E] border transition-all duration-200 shadow-lg ${
-      isCollapsed 
-        ? 'p-3.5 border-white/[0.06] hover:border-white/[0.14]' 
-        : 'p-4 border-white/[0.09] space-y-3.5'
-    }`}>
-      {/* Meal Header (Clickable Accordion Area) */}
+    <div className="rounded-3xl bg-[#090F1E] border border-white/[0.08] shadow-lg transition-all duration-200 hover:border-white/[0.14] overflow-hidden">
+      {/* Meal Header (Matching Reference Screen 3 "Nutrition" UI Kit) */}
       <div 
         onClick={toggleCollapse}
-        className="flex items-center justify-between cursor-pointer select-none group"
+        className="p-4 flex items-center justify-between gap-3 cursor-pointer select-none group"
       >
-        <div className="min-w-0 pr-2 flex-1">
-          {/* Título & Horário */}
-          <div className="flex items-center gap-2 flex-wrap" onClick={(e) => isEditingName && e.stopPropagation()}>
-            {isEditingName ? (
-              <form 
-                onSubmit={handleSaveName}
-                onClick={(e) => e.stopPropagation()}
-                className="flex items-center gap-1.5"
-              >
-                <input
-                  type="text"
-                  value={tempName}
-                  onChange={(e) => setTempName(e.target.value)}
-                  className="px-2 py-0.5 bg-slate-950 border border-blue-500 rounded-lg text-xs font-bold text-white font-display focus:outline-none"
-                  autoFocus
-                  onBlur={() => handleSaveName()}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') {
-                      setTempName(meal.name);
-                      setIsEditingName(false);
-                    }
-                  }}
-                />
-                <button
-                  type="submit"
-                  className="p-1 rounded-lg bg-blue-600 text-white hover:bg-blue-500 btn-tactile"
-                >
-                  <Check className="w-3 h-3" />
-                </button>
-              </form>
-            ) : (
-              <div className="flex items-center gap-1.5 group/title">
-                <h3 className="font-extrabold text-sm text-white font-display tracking-tight group-hover:text-blue-400 transition-colors truncate">
-                  {meal.name}
-                </h3>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setTempName(meal.name);
-                    setIsEditingName(true);
-                  }}
-                  className="p-1 rounded-md text-slate-500 hover:text-white hover:bg-white/10 opacity-60 hover:opacity-100 transition-all"
-                  title="Renomear Refeição"
-                >
-                  <Pencil className="w-3 h-3" />
-                </button>
-              </div>
-            )}
+        {/* Round Dish Thumbnail on Left */}
+        <div className="w-12 h-12 rounded-2xl bg-[#060A14] border border-white/[0.08] flex items-center justify-center text-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+          {getMealEmoji(meal.name, meal.order)}
+        </div>
 
-            {/* Horário da Refeição */}
-            {isEditingTime ? (
-              <form 
-                onSubmit={handleSaveTime}
-                onClick={(e) => e.stopPropagation()}
-                className="flex items-center gap-1"
-              >
-                <input
-                  type="text"
-                  value={tempTime}
-                  onChange={(e) => setTempTime(e.target.value)}
-                  placeholder="08:00"
-                  className="w-16 px-1.5 py-0.5 bg-slate-950 border border-blue-500 rounded-lg text-[10px] font-mono text-white text-center focus:outline-none"
-                  autoFocus
-                  onBlur={() => handleSaveTime()}
-                />
-                <button
-                  type="submit"
-                  className="p-0.5 rounded bg-blue-600 text-white"
-                >
-                  <Check className="w-2.5 h-2.5" />
-                </button>
-              </form>
-            ) : (
-              displayTime && (
-                <span 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setTempTime(displayTime);
-                    setIsEditingTime(true);
-                  }}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#060A14] text-[10px] font-mono text-slate-400 border border-white/5 hover:border-blue-500/40 hover:text-slate-200 transition-all cursor-pointer"
-                  title="Clique para editar horário"
-                >
-                  <Clock className="w-2.5 h-2.5 text-blue-400" />
-                  <span>{displayTime}</span>
-                </span>
-              )
+        {/* Meal Info Middle */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h3 className="font-extrabold text-sm text-white font-display tracking-tight truncate group-hover:text-[#A3E635] transition-colors">
+              {meal.name}
+            </h3>
+            {displayTime && (
+              <span className="text-[10px] font-mono text-slate-500">
+                {displayTime}
+              </span>
             )}
-
             {allConsumed && (
-              <span className="flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-emerald-500/15 text-[9px] font-extrabold text-emerald-400 font-mono border border-emerald-500/20">
-                <CheckCircle2 className="w-2.5 h-2.5" />
-                <span>Feita</span>
+              <span className="px-1.5 py-0.2 rounded bg-[#84CC16]/20 text-[9px] font-extrabold text-[#A3E635] font-mono">
+                Feita
               </span>
             )}
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-mono text-slate-400 mt-0.5">
-            <span className="text-blue-400 font-bold">{currentTotals.calories} kcal</span>
-            <span className="text-slate-600">&bull;</span>
-            <span>P: {currentTotals.protein}g</span>
-            <span className="text-slate-600">&bull;</span>
-            <span>C: {currentTotals.carbs}g</span>
-            <span className="text-slate-600">&bull;</span>
-            <span>G: {currentTotals.fat}g</span>
-            {isCollapsed && meal.portions.length > 0 && (
-              <>
-                <span className="text-slate-600">&bull;</span>
-                <span className="text-slate-500 text-[11px] font-sans">
-                  {meal.portions.length} {meal.portions.length === 1 ? 'item' : 'itens'}
-                </span>
-              </>
-            )}
-          </div>
+          <p className="text-xs text-slate-400 truncate mt-0.5 font-medium">
+            {foodSummaryText}
+          </p>
         </div>
 
-        {/* Header Action Buttons + Collapse Indicator */}
-        <div className="flex items-center gap-1 shrink-0">
-          {!isCollapsed && (
-            <>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsAddFoodOpen(true);
-                }}
-                className="p-1.5 rounded-xl bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-500/30 transition-all text-xs font-bold flex items-center gap-1 btn-tactile"
-                title="Adicionar Alimento"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-              {onDeleteMeal && meal.id && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteMeal(meal.id!);
-                  }}
-                  className="p-1.5 rounded-xl bg-red-600/10 text-red-400 hover:bg-red-600/20 border border-red-500/20 transition-all btn-tactile"
-                  title="Excluir Refeição"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              )}
-            </>
-          )}
-
-          {/* Chevron Collapse Indicator */}
-          <div className="p-1 text-slate-400 group-hover:text-white transition-colors">
-            {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+        {/* Calories Right Aligned (Mockup Reference Style) */}
+        <div className="text-right shrink-0 flex items-center gap-2">
+          <div>
+            <span className="text-sm font-black text-white font-mono block">
+              {currentTotals.calories} <span className="text-xs font-normal text-slate-400">kcal</span>
+            </span>
+            <span className="text-[10px] text-slate-500 font-mono block">
+              P:{Math.round(currentTotals.protein)}g &bull; C:{Math.round(currentTotals.carbs)}g
+            </span>
           </div>
+          {isCollapsed ? (
+            <ChevronDown className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+          ) : (
+            <ChevronUp className="w-4 h-4 text-[#A3E635] transition-colors" />
+          )}
         </div>
       </div>
 
-      {/* Food Portions List (Shown Only When Expanded) */}
+      {/* Expanded Meal Details */}
       {!isCollapsed && (
-        <div className="space-y-2 pt-1 border-t border-white/[0.04] animate-in fade-in duration-200">
-          {meal.portions.length === 0 ? (
-            <div 
-              onClick={() => setIsAddFoodOpen(true)}
-              className="p-4 rounded-2xl border border-dashed border-white/[0.08] text-center text-slate-500 text-xs cursor-pointer hover:border-blue-500/40 hover:text-slate-400 transition-all"
-            >
-              Nenhum alimento cadastrado. Toque para incluir da tabela TACO.
+        <div className="p-4 pt-0 space-y-3 border-t border-white/[0.04] mt-1 animate-in fade-in duration-200">
+          {/* Quick Edit Tools (Name & Time) */}
+          <div className="flex items-center justify-between text-xs pt-3 pb-1 border-b border-white/[0.04]">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setTempName(meal.name);
+                  setIsEditingName(true);
+                }}
+                className="text-[11px] font-bold text-slate-400 hover:text-white flex items-center gap-1 transition-colors"
+              >
+                <Pencil className="w-3 h-3" />
+                <span>Renomear</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setTempTime(displayTime || '12:00');
+                  setIsEditingTime(true);
+                }}
+                className="text-[11px] font-bold text-slate-400 hover:text-white flex items-center gap-1 transition-colors"
+              >
+                <Clock className="w-3 h-3" />
+                <span>Horário</span>
+              </button>
             </div>
-          ) : (
-            meal.portions.map((portion, idx) => {
-              const food = FOOD_DATABASE_MAP.get(portion.foodId);
-              if (!food) return null;
 
-              const nutrients = calculateFoodNutrients(food, portion.grams);
-              const household = formatHouseholdPortion(food, portion.grams);
-              const isEditing = editingGramsIndex === idx;
+            {onDeleteMeal && (
+              <button
+                type="button"
+                onClick={() => onDeleteMeal(meal.id!)}
+                className="text-[11px] font-bold text-red-400/80 hover:text-red-400 flex items-center gap-1 transition-colors"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>Excluir</span>
+              </button>
+            )}
+          </div>
 
-              return (
-                <div
-                  key={`${portion.foodId}-${idx}`}
-                  className={`p-2.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
-                    portion.consumed
-                      ? 'bg-[#050811]/70 border-white/[0.03] opacity-60'
-                      : 'bg-[#060A14] border-white/[0.06] hover:border-white/[0.12]'
-                  }`}
-                >
-                  {/* Checkbox & Name */}
-                  <div className="flex items-center gap-2.5 min-w-0">
+          {/* Inline Edit Form for Name */}
+          {isEditingName && (
+            <form onSubmit={handleSaveName} className="flex gap-2">
+              <input
+                type="text"
+                value={tempName}
+                onChange={(e) => setTempName(e.target.value)}
+                className="flex-1 px-3 py-1.5 bg-slate-950 border border-blue-500 rounded-xl text-xs font-bold text-white focus:outline-none"
+                autoFocus
+              />
+              <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-bold">
+                Salvar
+              </button>
+            </form>
+          )}
+
+          {/* Inline Edit Form for Time */}
+          {isEditingTime && (
+            <form onSubmit={handleSaveTime} className="flex gap-2">
+              <input
+                type="text"
+                value={tempTime}
+                onChange={(e) => setTempTime(e.target.value)}
+                className="w-24 px-3 py-1.5 bg-slate-950 border border-blue-500 rounded-xl text-xs font-bold text-white text-center focus:outline-none"
+                autoFocus
+              />
+              <button type="submit" className="px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-bold">
+                Salvar
+              </button>
+            </form>
+          )}
+
+          {/* Food Portions List */}
+          <div className="space-y-2">
+            {meal.portions.length === 0 ? (
+              <p className="text-xs text-slate-500 text-center py-3">
+                Nenhum alimento cadastrado nesta refeição ainda.
+              </p>
+            ) : (
+              meal.portions.map((portion, idx) => {
+                const food = FOOD_DATABASE_MAP.get(portion.foodId);
+                if (!food) return null;
+                const nutrients = calculateFoodNutrients(food, portion.grams);
+                const household = formatHouseholdPortion(food, portion.grams);
+
+                return (
+                  <div
+                    key={`${portion.foodId}-${idx}`}
+                    className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-2.5 ${
+                      portion.consumed
+                        ? 'bg-[#060A14] border-[#84CC16]/30 opacity-80'
+                        : 'bg-[#060A14] border-white/[0.06]'
+                    }`}
+                  >
+                    {/* Checkbox */}
                     <button
+                      type="button"
                       onClick={() => togglePortionConsumed(idx)}
-                      className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all shrink-0 btn-tactile ${
+                      className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all shrink-0 ${
                         portion.consumed
-                          ? 'bg-emerald-500 border-emerald-400 text-slate-950 glow-emerald'
-                          : 'border-white/20 hover:border-blue-400 bg-slate-950/50'
+                          ? 'bg-[#84CC16] border-[#84CC16] text-slate-950'
+                          : 'border-slate-700 bg-transparent hover:border-slate-500'
                       }`}
                     >
                       {portion.consumed && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                     </button>
 
-                    <div className="min-w-0">
-                      <p
-                        className={`text-xs font-bold text-slate-200 truncate ${
-                          portion.consumed ? 'line-through text-slate-500' : ''
-                        }`}
+                    {/* Food Info */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-xs font-bold truncate ${portion.consumed ? 'line-through text-slate-400' : 'text-slate-100'}`}>
+                          {food.name}
+                        </span>
+                      </div>
+
+                      {/* Household measure stepper */}
+                      <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400 mt-1">
+                        <div className="flex items-center gap-1 bg-slate-950 px-2 py-0.5 rounded-lg border border-white/5">
+                          <button
+                            type="button"
+                            onClick={() => handleAdjustHouseholdUnits(idx, -1, food.servingGrams || 100)}
+                            className="text-slate-400 hover:text-white font-bold px-0.5"
+                          >
+                            -
+                          </button>
+                          <span className="text-[#A3E635] font-bold px-1">{household.label}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleAdjustHouseholdUnits(idx, 1, food.servingGrams || 100)}
+                            className="text-slate-400 hover:text-white font-bold px-0.5"
+                          >
+                            +
+                          </button>
+                        </div>
+                        <span className="text-white font-bold">{nutrients.calories} kcal</span>
+                      </div>
+                    </div>
+
+                    {/* Actions (Swap & Delete) */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setSwapState({ originalFoodId: food.id, originalGrams: portion.grams })}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-[#A3E635] hover:bg-white/5 transition-all"
+                        title="Troca Inteligente de Alimento"
                       >
-                        {food.name}
-                      </p>
-                      <p className="text-[10px] text-slate-400 font-mono">
-                        {nutrients.calories} kcal &bull; P: {nutrients.protein}g | C: {nutrients.carbs}g | G: {nutrients.fat}g
-                      </p>
+                        <Repeat className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePortion(idx)}
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                        title="Remover"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
+                );
+              })
+            )}
+          </div>
 
-                  {/* Grams / Household Units & Actions */}
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {isEditing ? (
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="number"
-                          value={tempGrams}
-                          onChange={(e) => setTempGrams(e.target.value === '' ? '' : e.target.value)}
-                          className="w-16 px-1.5 py-0.5 bg-slate-950 border border-blue-500 rounded-lg text-xs text-white font-bold text-center font-mono"
-                          autoFocus
-                        />
-                        <span className="text-[10px] text-slate-400 font-mono">g</span>
-                        <button
-                          onClick={() => handleSaveGrams(idx)}
-                          className="p-1 rounded-lg bg-blue-600 text-white hover:bg-blue-500 btn-tactile"
-                        >
-                          <Check className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        {/* Se o alimento tiver medida caseira (ex: ovos, pão, scoop) */}
-                        {household.hasHousehold && food.servingGrams ? (
-                          <div className="flex items-center gap-1 bg-[#0E1629] border border-white/5 rounded-xl px-1.5 py-0.5">
-                            <button
-                              type="button"
-                              onClick={() => handleAdjustHouseholdUnits(idx, -1, food.servingGrams!)}
-                              className="w-4 h-4 rounded text-slate-400 hover:text-white flex items-center justify-center text-xs font-bold btn-tactile"
-                            >
-                              -
-                            </button>
-                            
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingGramsIndex(idx);
-                                setTempGrams(portion.grams);
-                              }}
-                              className="text-xs font-bold text-slate-200 font-mono px-1 hover:text-blue-400 transition-colors whitespace-nowrap"
-                              title="Clique para editar gramas exatas"
-                            >
-                              {household.units} {household.abbrevUnit} <span className="text-slate-500 text-[10px]">({portion.grams}g)</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleAdjustHouseholdUnits(idx, 1, food.servingGrams!)}
-                              className="w-4 h-4 rounded text-slate-400 hover:text-white flex items-center justify-center text-xs font-bold btn-tactile"
-                            >
-                              +
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              setEditingGramsIndex(idx);
-                              setTempGrams(portion.grams);
-                            }}
-                            className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#0E1629] hover:bg-slate-800 text-xs font-bold text-slate-300 font-mono border border-white/5 transition-all btn-tactile"
-                          >
-                            <span>{portion.grams}g</span>
-                            <Edit2 className="w-2.5 h-2.5 text-slate-500" />
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Macro Swap Button */}
-                    <button
-                      onClick={() =>
-                        setSwapState({
-                          originalFoodId: portion.foodId,
-                          originalGrams: portion.grams
-                        })
-                      }
-                      className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition-all btn-tactile"
-                      title="Troca Inteligente (Macro-Swap)"
-                    >
-                      <Repeat className="w-3.5 h-3.5" />
-                    </button>
-
-                    {/* Remove Portion */}
-                    <button
-                      onClick={() => handleRemovePortion(idx)}
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all btn-tactile"
-                      title="Remover"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          )}
+          {/* Add Food Button */}
+          <button
+            type="button"
+            onClick={() => setIsAddFoodOpen(true)}
+            className="w-full py-2.5 rounded-2xl bg-[#060A14] border border-white/[0.08] hover:border-[#84CC16]/40 text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+          >
+            <Plus className="w-3.5 h-3.5 text-[#A3E635]" />
+            <span>Adicionar Alimento</span>
+          </button>
         </div>
       )}
 
-      {/* Modais */}
+      {/* Food Picker Modal */}
+      <FoodPickerModal
+        isOpen={isAddFoodOpen}
+        onClose={() => setIsAddFoodOpen(false)}
+        onSelectFood={handleAddFood}
+      />
+
+      {/* Macro Swap Modal */}
       {swapState && (
         <MacroSwapModal
           isOpen={true}
@@ -454,12 +379,6 @@ export const MealCard: React.FC<MealCardProps> = ({
           onApplySwap={handleApplySwap}
         />
       )}
-
-      <FoodPickerModal
-        isOpen={isAddFoodOpen}
-        onClose={() => setIsAddFoodOpen(false)}
-        onSelectFood={handleAddFood}
-      />
     </div>
   );
 };

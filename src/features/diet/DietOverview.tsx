@@ -417,37 +417,37 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
       {/* 3. BARRA DE AÇÕES DA DIETA                                */}
       {/* ========================================================= */}
       <div className="flex items-center justify-between gap-2 px-1">
-        <span className="text-xs font-extrabold text-slate-300 uppercase tracking-widest font-mono flex items-center gap-1.5">
-          <span>Timeline de Refeições</span>
+        <span className="text-sm font-extrabold text-white font-display">
+          Refeições
         </span>
 
         <div className="flex items-center gap-1.5">
           {/* Diet Builder Button */}
           <button
             onClick={() => setIsSmartWizardOpen(true)}
-            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600/20 to-emerald-500/20 border border-emerald-500/30 text-emerald-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile shadow-sm"
-            title="Montador de Cardápio (Automático ou Passo a Passo)"
+            className="px-3 py-1.5 rounded-xl bg-[#0E1628] border border-white/[0.08] text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile shadow-sm"
+            title="Montador de Cardápio"
           >
-            <UtensilsCrossed className="w-3.5 h-3.5 text-emerald-400" />
+            <UtensilsCrossed className="w-3.5 h-3.5 text-[#A3E635]" />
             <span>Montar Cardápio</span>
           </button>
 
           <button
             onClick={() => setIsShoppingOpen(true)}
-            className="p-1.5 px-2.5 rounded-xl bg-[#090F1E] border border-white/[0.08] hover:border-emerald-500/40 text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile shadow-sm"
+            className="p-1.5 px-2.5 rounded-xl bg-[#090F1E] border border-white/[0.08] hover:border-[#84CC16]/40 text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile shadow-sm"
             title="Lista de Compras da Semana"
           >
-            <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
+            <ShoppingBag className="w-3.5 h-3.5 text-[#A3E635]" />
             <span className="hidden sm:inline">Compras</span>
           </button>
 
           <button
             onClick={handleAddMeal}
-            className="p-1.5 px-2.5 rounded-xl bg-blue-600/20 border border-blue-500/40 text-blue-400 hover:bg-blue-600/30 text-xs font-bold transition-all flex items-center gap-1 btn-tactile shadow-sm"
+            className="p-1.5 px-2.5 rounded-xl bg-[#84CC16]/20 border border-[#84CC16]/40 text-[#A3E635] hover:bg-[#84CC16]/30 text-xs font-bold transition-all flex items-center gap-1 btn-tactile shadow-sm"
             title="Adicionar Refeição Extra"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Refeição</span>
+            <span>Refeição</span>
           </button>
 
           <button
@@ -461,48 +461,23 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
       </div>
 
       {/* ========================================================= */}
-      {/* 4. TIMELINE VERTICAL CONECTADA DE REFEIÇÕES               */}
+      {/* 4. LISTA DE CARDS DE REFEIÇÕES (Gym UI Kit Style)          */}
       {/* ========================================================= */}
-      <div className="relative pl-1 space-y-3">
-        {/* Continuous Left Timeline Rail (Precisely Centered on 32px badge) */}
-        <div className="absolute left-[19px] top-4 bottom-4 w-[2px] bg-gradient-to-b from-blue-500 via-emerald-500 to-slate-800 pointer-events-none" />
-
+      <div className="space-y-3">
         {mealPlans.map((meal, index) => {
           const preset = HUMAN_MEAL_PRESETS[index] || { time: '18:00', icon: Sun };
-          const IconComponent = preset.icon;
           const isCollapsed = collapsedMealIds.has(meal.order);
 
           return (
-            <div 
-              key={meal.id || meal.order} 
-              className={`relative flex gap-3 ${isCollapsed ? 'items-center' : 'items-start'}`}
-            >
-              {/* Timeline Node Badge (Clickable & Centered) */}
-              <button
-                type="button"
-                onClick={() => toggleMealCollapse(meal.order)}
-                className={`w-8 h-8 rounded-full bg-[#050811] border-2 flex items-center justify-center shrink-0 z-10 shadow-md transition-all btn-tactile ${
-                  !isCollapsed 
-                    ? 'border-blue-500 text-blue-400 glow-blue scale-105 mt-3' 
-                    : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-white'
-                }`}
-                title={`Clique para ${isCollapsed ? 'abrir' : 'recolher'} ${meal.name}`}
-              >
-                <IconComponent className="w-4 h-4" />
-              </button>
-
-              {/* Meal Card Content */}
-              <div className="flex-1 min-w-0">
-                <MealCard
-                  meal={meal}
-                  timeLabel={preset.time}
-                  isCollapsed={isCollapsed}
-                  onToggleCollapse={() => toggleMealCollapse(meal.order)}
-                  onUpdateMeal={handleUpdateMeal}
-                  onDeleteMeal={mealPlans.length > 1 ? handleDeleteMeal : undefined}
-                />
-              </div>
-            </div>
+            <MealCard
+              key={meal.id || meal.order}
+              meal={meal}
+              timeLabel={preset.time}
+              isCollapsed={isCollapsed}
+              onToggleCollapse={() => toggleMealCollapse(meal.order)}
+              onUpdateMeal={handleUpdateMeal}
+              onDeleteMeal={mealPlans.length > 1 ? handleDeleteMeal : undefined}
+            />
           );
         })}
       </div>
