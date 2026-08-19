@@ -5,11 +5,15 @@ import {
   Sparkles, 
   Dumbbell, 
   Activity, 
-  Scale 
+  Scale,
+  TrendingDown,
+  BarChart3
 } from 'lucide-react';
 import { UserProfile, MetabolicStats, WeightLog, WorkoutSessionLog } from '../../core/storage/types';
 import { db, getWeightHistory, logWeightEntry } from '../../core/storage/db';
 import { CheckInModal } from './CheckInModal';
+import { WeightTrendChart } from './WeightTrendChart';
+import { VolumeTonnageChart } from './VolumeTonnageChart';
 
 interface ProgressDashboardProps {
   profile: UserProfile;
@@ -26,6 +30,7 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
   const [sessionLogs, setSessionLogs] = useState<WorkoutSessionLog[]>([]);
   const [inputWeight, setInputWeight] = useState<number | string>(profile.weightKg);
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
+  const [activeChartTab, setActiveChartTab] = useState<'weight' | 'tonnage'>('weight');
 
   const loadData = async () => {
     const wLogs = await getWeightHistory();
@@ -112,7 +117,7 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
             )}
           </div>
           <p className="text-[10px] text-slate-400 font-mono">
-            Tendência Suavizada: <strong className="text-emerald-400">{currentEma?.toFixed(1)} kg</strong>
+            Tendência: <strong className="text-emerald-400">{currentEma?.toFixed(1)} kg</strong>
           </p>
         </div>
 
@@ -129,6 +134,44 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
             <strong className="text-white">{totalWorkouts}</strong> {totalWorkouts === 1 ? 'sessão concluída' : 'sessões concluídas'}
           </p>
         </div>
+      </div>
+
+      {/* Visual Analytics Chart Switcher */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-1.5 p-1 bg-[#060A14] border border-white/[0.06] rounded-2xl">
+          <button
+            type="button"
+            onClick={() => setActiveChartTab('weight')}
+            className={`flex-1 py-2 px-3 rounded-xl font-display font-bold text-xs flex items-center justify-center gap-1.5 transition-all btn-tactile ${
+              activeChartTab === 'weight'
+                ? 'bg-gradient-to-r from-blue-600 to-emerald-500 text-white shadow-md'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <TrendingDown className="w-3.5 h-3.5" />
+            <span>Tendência de Peso (EMA)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveChartTab('tonnage')}
+            className={`flex-1 py-2 px-3 rounded-xl font-display font-bold text-xs flex items-center justify-center gap-1.5 transition-all btn-tactile ${
+              activeChartTab === 'tonnage'
+                ? 'bg-gradient-to-r from-blue-600 to-emerald-500 text-white shadow-md'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            <span>Sobrecarga de Treinos</span>
+          </button>
+        </div>
+
+        {/* Active Chart Component */}
+        {activeChartTab === 'weight' ? (
+          <WeightTrendChart logs={weightLogs} />
+        ) : (
+          <VolumeTonnageChart sessions={sessionLogs} />
+        )}
       </div>
 
       {/* Fast Daily Weight Logger */}
