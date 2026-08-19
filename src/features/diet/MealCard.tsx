@@ -9,7 +9,8 @@ import {
   Clock,
   ChevronDown,
   ChevronUp,
-  CheckCircle2
+  CheckCircle2,
+  Pencil
 } from 'lucide-react';
 import { MealPlan, FoodItem } from '../../core/storage/types';
 import { FOOD_DATABASE_MAP } from '../../core/data/tacoDatabase';
@@ -49,6 +50,13 @@ export const MealCard: React.FC<MealCardProps> = ({
   const [isAddFoodOpen, setIsAddFoodOpen] = useState(false);
   const [editingGramsIndex, setEditingGramsIndex] = useState<number | null>(null);
   const [tempGrams, setTempGrams] = useState<number | string>(100);
+
+  // Estados de edição do nome e do horário da refeição
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempName, setTempName] = useState(meal.name);
+
+  const [isEditingTime, setIsEditingTime] = useState(false);
+  const [tempTime, setTempTime] = useState(meal.timeLabel || timeLabel || '12:00');
 
   const currentTotals = calculatePortionsTotal(meal.portions, FOOD_DATABASE_MAP);
   const allConsumed = meal.portions.length > 0 && meal.portions.every((p) => p.consumed);
@@ -98,6 +106,26 @@ export const MealCard: React.FC<MealCardProps> = ({
     onUpdateMeal({ ...meal, portions: newPortions });
   };
 
+  const handleSaveName = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const clean = tempName.trim();
+    if (clean) {
+      onUpdateMeal({ ...meal, name: clean });
+    }
+    setIsEditingName(false);
+  };
+
+  const handleSaveTime = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const clean = tempTime.trim();
+    if (clean) {
+      onUpdateMeal({ ...meal, timeLabel: clean });
+    }
+    setIsEditingTime(false);
+  };
+
+  const displayTime = meal.timeLabel || timeLabel;
+
   return (
     <div className={`rounded-3xl bg-[#090F1E] border transition-all duration-200 shadow-lg ${
       isCollapsed 
@@ -109,17 +137,96 @@ export const MealCard: React.FC<MealCardProps> = ({
         onClick={toggleCollapse}
         className="flex items-center justify-between cursor-pointer select-none group"
       >
-        <div className="min-w-0 pr-2">
-          <div className="flex items-center gap-2">
-            <h3 className="font-extrabold text-sm text-white font-display tracking-tight group-hover:text-blue-400 transition-colors">
-              {meal.name}
-            </h3>
-            {timeLabel && (
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#060A14] text-[10px] font-mono text-slate-400 border border-white/5">
-                <Clock className="w-2.5 h-2.5 text-blue-400" />
-                <span>{timeLabel}</span>
-              </span>
+        <div className="min-w-0 pr-2 flex-1">
+          {/* Título & Horário */}
+          <div className="flex items-center gap-2 flex-wrap" onClick={(e) => isEditingName && e.stopPropagation()}>
+            {isEditingName ? (
+              <form 
+                onSubmit={handleSaveName}
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-1.5"
+              >
+                <input
+                  type="text"
+                  value={tempName}
+                  onChange={(e) => setTempName(e.target.value)}
+                  className="px-2 py-0.5 bg-slate-950 border border-blue-500 rounded-lg text-xs font-bold text-white font-display focus:outline-none"
+                  autoFocus
+                  onBlur={() => handleSaveName()}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setTempName(meal.name);
+                      setIsEditingName(false);
+                    }
+                  }}
+                />
+                <button
+                  type="submit"
+                  className="p-1 rounded-lg bg-blue-600 text-white hover:bg-blue-500 btn-tactile"
+                >
+                  <Check className="w-3 h-3" />
+                </button>
+              </form>
+            ) : (
+              <div className="flex items-center gap-1.5 group/title">
+                <h3 className="font-extrabold text-sm text-white font-display tracking-tight group-hover:text-blue-400 transition-colors truncate">
+                  {meal.name}
+                </h3>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setTempName(meal.name);
+                    setIsEditingName(true);
+                  }}
+                  className="p-1 rounded-md text-slate-500 hover:text-white hover:bg-white/10 opacity-60 hover:opacity-100 transition-all"
+                  title="Renomear Refeição"
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+              </div>
             )}
+
+            {/* Horário da Refeição */}
+            {isEditingTime ? (
+              <form 
+                onSubmit={handleSaveTime}
+                onClick={(e) => e.stopPropagation()}
+                className="flex items-center gap-1"
+              >
+                <input
+                  type="text"
+                  value={tempTime}
+                  onChange={(e) => setTempTime(e.target.value)}
+                  placeholder="08:00"
+                  className="w-16 px-1.5 py-0.5 bg-slate-950 border border-blue-500 rounded-lg text-[10px] font-mono text-white text-center focus:outline-none"
+                  autoFocus
+                  onBlur={() => handleSaveTime()}
+                />
+                <button
+                  type="submit"
+                  className="p-0.5 rounded bg-blue-600 text-white"
+                >
+                  <Check className="w-2.5 h-2.5" />
+                </button>
+              </form>
+            ) : (
+              displayTime && (
+                <span 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setTempTime(displayTime);
+                    setIsEditingTime(true);
+                  }}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#060A14] text-[10px] font-mono text-slate-400 border border-white/5 hover:border-blue-500/40 hover:text-slate-200 transition-all cursor-pointer"
+                  title="Clique para editar horário"
+                >
+                  <Clock className="w-2.5 h-2.5 text-blue-400" />
+                  <span>{displayTime}</span>
+                </span>
+              )
+            )}
+
             {allConsumed && (
               <span className="flex items-center gap-1 px-1.5 py-0.2 rounded-md bg-emerald-500/15 text-[9px] font-extrabold text-emerald-400 font-mono border border-emerald-500/20">
                 <CheckCircle2 className="w-2.5 h-2.5" />

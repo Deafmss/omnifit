@@ -29,9 +29,9 @@ interface DietOverviewProps {
 const HUMAN_MEAL_PRESETS = [
   { name: 'Café da Manhã', time: '08:00', icon: Sunrise },
   { name: 'Almoço', time: '12:30', icon: Sun },
-  { name: 'Lanche / Pré-Treino', time: '16:30', icon: Sunset },
+  { name: 'Lanche da Tarde', time: '16:30', icon: Sunset },
   { name: 'Jantar', time: '20:00', icon: Moon },
-  { name: 'Ceia / Lanche Noturno', time: '22:30', icon: Moon }
+  { name: 'Ceia', time: '22:30', icon: Moon }
 ];
 
 export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProfile, stats }) => {

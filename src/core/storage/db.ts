@@ -345,7 +345,7 @@ export async function generateInitialMealPlans(
   const mealNamesMap: Record<number, string[]> = {
     2: ['Almoço Principal', 'Jantar Principal'],
     3: ['Café da Manhã', 'Almoço Completo', 'Jantar'],
-    4: ['Café da Manhã', 'Almoço Completo', 'Lanche Pré-Treino', 'Jantar'],
+    4: ['Café da Manhã', 'Almoço Completo', 'Lanche da Tarde', 'Jantar'],
     5: ['Café da Manhã', 'Almoço Completo', 'Lanche da Tarde', 'Jantar', 'Ceia'],
     6: ['Café da Manhã', 'Colação', 'Almoço Completo', 'Lanche da Tarde', 'Jantar', 'Ceia']
   };

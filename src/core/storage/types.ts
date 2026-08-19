@@ -109,6 +109,7 @@ export interface MealPlan {
   id?: number;
   name: string;
   order: number;
+  timeLabel?: string;
   targetProtein: number;
   targetCarbs: number;
   targetFat: number;
