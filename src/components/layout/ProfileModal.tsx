@@ -1,9 +1,10 @@
-import React from 'react';
 import { 
   RotateCcw, 
-  ShieldAlert 
+  ShieldAlert,
+  LogOut
 } from 'lucide-react';
 import { UserProfile, MetabolicStats } from '../../core/storage/types';
+import { UserAccount } from '../../core/auth/authService';
 import { Modal } from '../ui/Modal';
 import { db } from '../../core/storage/db';
 
@@ -12,7 +13,9 @@ interface ProfileModalProps {
   onClose: () => void;
   profile: UserProfile;
   stats: MetabolicStats;
+  account?: UserAccount | null;
   onReOnboard: () => void;
+  onLogout: () => void;
 }
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
@@ -20,7 +23,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onClose,
   profile,
   stats,
-  onReOnboard
+  account,
+  onReOnboard,
+  onLogout
 }) => {
   const handleResetApp = async () => {
     if (confirm('Tem certeza de que deseja resetar todos os dados e refazer a calibração do zero?')) {
@@ -50,11 +55,39 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       subtitle={`Parâmetros científicos calibrados para ${profile.name}`}
     >
       <div className="space-y-4">
+        {/* Account Info & Logout */}
+        {account && (
+          <div className="p-3.5 rounded-2xl bg-[#060A14] border border-white/[0.08] flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-[#84CC16]/15 border border-[#84CC16]/30 text-[#A3E635] flex items-center justify-center font-bold text-sm font-mono shrink-0 uppercase">
+                {account.name.slice(0, 2)}
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs font-bold text-white truncate">{account.name}</h4>
+                <p className="text-[10px] text-slate-400 font-mono truncate">{account.email}</p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onLogout();
+              }}
+              className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-red-400 border border-white/5 text-xs font-bold font-mono transition-all flex items-center gap-1.5 shrink-0"
+              title="Encerrar sessão"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sair</span>
+            </button>
+          </div>
+        )}
+
         {/* User Anthropometrics */}
         <div className="p-4 rounded-2xl bg-slate-900 border border-white/10 space-y-2 text-xs">
           <div className="flex items-center justify-between border-b border-white/5 pb-2">
             <span className="font-bold text-white uppercase tracking-wider">Dados Antropométricos</span>
-            <span className="text-blue-400 font-bold">{getGoalName()}</span>
+            <span className="text-[#A3E635] font-bold font-mono">{getGoalName()}</span>
           </div>
 
           <div className="grid grid-cols-3 gap-2 font-mono text-center pt-1">

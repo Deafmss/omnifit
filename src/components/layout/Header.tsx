@@ -1,10 +1,12 @@
 import React from 'react';
 import { Flame, Dumbbell, Utensils, TrendingUp } from 'lucide-react';
 import { UserProfile, MetabolicStats } from '../../core/storage/types';
+import { UserAccount } from '../../core/auth/authService';
 
 interface HeaderProps {
   profile?: UserProfile;
   stats?: MetabolicStats;
+  account?: UserAccount | null;
   activeTab: 'diet' | 'workout' | 'progress';
   onOpenSettings: () => void;
 }
@@ -12,6 +14,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   profile,
   stats,
+  account,
   activeTab,
   onOpenSettings
 }) => {
@@ -47,15 +50,28 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {stats && profile && (
-          <button
-            onClick={onOpenSettings}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#0E1629] border border-white/[0.08] hover:border-amber-500/40 transition-all text-xs font-mono font-bold text-slate-200 btn-tactile shadow-sm"
-          >
-            <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-            <span>{stats.targetCalories} kcal</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {stats && profile && (
+            <button
+              onClick={onOpenSettings}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#0E1629] border border-white/[0.08] hover:border-amber-500/40 transition-all text-xs font-mono font-bold text-slate-200 btn-tactile shadow-sm"
+              title="Meta Calórica Atual"
+            >
+              <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+              <span>{stats.targetCalories} kcal</span>
+            </button>
+          )}
+
+          {account && (
+            <button
+              onClick={onOpenSettings}
+              className="w-8 h-8 rounded-full bg-[#84CC16]/20 border border-[#84CC16]/40 text-[#A3E635] flex items-center justify-center text-xs font-mono font-black uppercase hover:scale-105 transition-all"
+              title={`Perfil de ${account.name}`}
+            >
+              {account.name.slice(0, 2)}
+            </button>
+          )}
+        </div>
       </div>
     </header>
   );

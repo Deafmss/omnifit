@@ -28,8 +28,8 @@ export class OmniFitDatabase extends Dexie {
   checkInLogs!: EntityTable<CheckInLog, 'id'>;
   thermogenicLogs!: EntityTable<DailyThermogenicLog, 'id'>;
 
-  constructor() {
-    super('OmniFitDatabase');
+  constructor(dbName: string = 'OmniFitDatabase') {
+    super(dbName);
     this.version(2).stores({
       profiles: '++id, isCalibrated, createdAt',
       mealPlans: '++id, order, name',
@@ -43,7 +43,36 @@ export class OmniFitDatabase extends Dexie {
   }
 }
 
-export const db = new OmniFitDatabase();
+function getActiveDbName(): string {
+  const activeUserId = typeof localStorage !== 'undefined' ? localStorage.getItem('omnifit_active_user_id') : null;
+  return activeUserId ? `OmniFit_user_${activeUserId}` : 'OmniFitDatabase';
+}
+
+let currentDbInstance = new OmniFitDatabase(getActiveDbName());
+
+export function switchUserDb(userId: string) {
+  try {
+    currentDbInstance.close();
+  } catch (e) {
+    // ignora erro ao fechar
+  }
+  currentDbInstance = new OmniFitDatabase(`OmniFit_user_${userId}`);
+}
+
+export function getCurrentUserDbInstance(): OmniFitDatabase {
+  return currentDbInstance;
+}
+
+export const db: OmniFitDatabase = new Proxy({} as OmniFitDatabase, {
+  get(_, prop) {
+    const target = currentDbInstance as any;
+    const value = target[prop];
+    if (typeof value === 'function') {
+      return value.bind(target);
+    }
+    return value;
+  }
+});
 
 /**
  * Retorna todos os alimentos oficiais TACO + Alimentos Personalizados cadastrados.
