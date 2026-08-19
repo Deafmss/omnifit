@@ -4,11 +4,14 @@ import {
   ShoppingBag, 
   Droplets, 
   RotateCcw,
-  Flame,
   Zap,
   Coffee,
   Settings2,
-  TrendingDown
+  TrendingDown,
+  Sun,
+  Sunrise,
+  Sunset,
+  Moon
 } from 'lucide-react';
 import { MealPlan, UserProfile, MetabolicStats, DailyThermogenicLog } from '../../core/storage/types';
 import { db, getTodayThermogenicLog, updateTodayThermogenics, getActiveProfile } from '../../core/storage/db';
@@ -23,13 +26,21 @@ interface DietOverviewProps {
   stats: MetabolicStats;
 }
 
+const HUMAN_MEAL_PRESETS = [
+  { name: 'Café da Manhã', time: '08:00', icon: Sunrise },
+  { name: 'Almoço', time: '12:30', icon: Sun },
+  { name: 'Lanche / Pré-Treino', time: '16:30', icon: Sunset },
+  { name: 'Jantar', time: '20:00', icon: Moon },
+  { name: 'Ceia / Lanche Noturno', time: '22:30', icon: Moon }
+];
+
 export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProfile, stats }) => {
   const [profile, setProfile] = useState<UserProfile>(initialProfile);
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
   const [isShoppingOpen, setIsShoppingOpen] = useState(false);
   const [isThermoConfigOpen, setIsThermoConfigOpen] = useState(false);
   const [waterDrunkMl, setWaterDrunkMl] = useState<number>(1500);
-  const [eatBonusCalories, setEatBonusCalories] = useState<boolean>(false); // Se true, soma ao orçamento; se false, soma ao déficit de gordura
+  const [eatBonusCalories, setEatBonusCalories] = useState<boolean>(false);
   const [thermogenicLog, setThermogenicLog] = useState<DailyThermogenicLog>({
     date: new Date().toISOString().split('T')[0],
     blackCoffeeCups: 0,
@@ -66,8 +77,9 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
 
   const handleAddMeal = async () => {
     const newOrder = mealPlans.length + 1;
+    const preset = HUMAN_MEAL_PRESETS[mealPlans.length] || { name: `Refeição ${newOrder}`, time: '18:00' };
     const newMeal: MealPlan = {
-      name: `Refeição ${newOrder}`,
+      name: preset.name,
       order: newOrder,
       targetCalories: Math.round(stats.targetCalories / (mealPlans.length + 1)),
       targetProtein: Math.round(stats.proteinGrams / (mealPlans.length + 1)),
@@ -106,7 +118,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
     setThermogenicLog(updated);
   };
 
-  // Calcula totais consumidos no dia
+  // Totais consumidos
   let totalCaloriesConsumed = 0;
   let totalProteinConsumed = 0;
   let totalCarbsConsumed = 0;
@@ -127,121 +139,130 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
     }
   }
 
-  // Integração determinística de queima termogênica
+  // Integração com a Termogênese
   const extraBurnKcal = thermogenicLog.totalThermogenicCaloriesBurned;
-  
-  // Orçamento calórico com ou sem inclusão do bônus
   const effectiveCalorieTarget = eatBonusCalories 
     ? stats.targetCalories + extraBurnKcal 
     : stats.targetCalories;
 
   const remainingCalories = Math.max(0, effectiveCalorieTarget - totalCaloriesConsumed);
-  const caloriePercentage = Math.min(100, Math.round((totalCaloriesConsumed / effectiveCalorieTarget) * 100));
+  const calorieFraction = Math.min(1, totalCaloriesConsumed / (effectiveCalorieTarget || 1));
 
-  // Cálculo do Déficit Fisiológico Real do Dia
+  // Geometria do Anel Circular Hero (SVG)
+  const radius = 70;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - calorieFraction * circumference;
+
+  // Déficit Real
   const baseTdee = stats.tdee;
   const actualTdeeToday = baseTdee + extraBurnKcal;
   const netDeficitToday = actualTdeeToday - totalCaloriesConsumed;
   const plannedFullDeficit = (baseTdee - stats.targetCalories) + extraBurnKcal;
 
-  const coffeeServingMl = profile.coffeeConfig?.servingMl || 150;
-  const coffeeCaffeineMg = profile.coffeeConfig?.caffeineMg || 100;
-  const preDoseGrams = profile.preWorkoutFormula?.doseGrams || 10;
-  const preCaffeineMg = profile.preWorkoutFormula?.caffeineMg || 400;
-
   return (
-    <div className="space-y-4 pb-24 max-w-lg mx-auto p-4 animate-in fade-in duration-300">
-      {/* Telemetry Card (Whoop + Linear Analytics com Déficit Integrado) */}
-      <div className="p-5 rounded-3xl bg-[#090F1E] border border-white/[0.09] shadow-2xl relative overflow-hidden space-y-4">
-        {/* Subtle Background Radial Glow */}
-        <div className="absolute top-0 right-0 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="space-y-4 pb-28 max-w-lg mx-auto p-4 animate-in fade-in duration-300">
+      {/* ========================================================= */}
+      {/* 1. HERO CIRCULAR ENERGY DIAL (Apple Watch / MacroFactor)   */}
+      {/* ========================================================= */}
+      <div className="p-6 rounded-[32px] bg-[#090F1E] border border-white/[0.08] shadow-2xl relative overflow-hidden flex flex-col items-center justify-center text-center">
+        {/* Subtle Radial Glow */}
+        <div className="absolute -top-10 -right-10 w-48 h-48 bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="flex items-start justify-between relative z-10">
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest font-mono">
-                Balanço Energético Hoje
-              </span>
-            </div>
+        {/* Circular Ring Gauge */}
+        <div className="relative w-44 h-44 flex items-center justify-center my-1">
+          <svg className="w-full h-full transform -rotate-90" viewBox="0 0 160 160">
+            {/* Background Track */}
+            <circle
+              cx="80"
+              cy="80"
+              r={radius}
+              stroke="currentColor"
+              strokeWidth="10"
+              className="text-[#050811]"
+              fill="transparent"
+            />
+            {/* Progress Stroke */}
+            <circle
+              cx="80"
+              cy="80"
+              r={radius}
+              stroke="url(#calorieGradient)"
+              strokeWidth="10"
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeDashoffset}
+              strokeLinecap="round"
+              className="transition-all duration-700 ease-out"
+              fill="transparent"
+            />
+            <defs>
+              <linearGradient id="calorieGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#0066FF" />
+                <stop offset="50%" stopColor="#38BDF8" />
+                <stop offset="100%" stopColor="#10B981" />
+              </linearGradient>
+            </defs>
+          </svg>
 
-            <div className="flex items-baseline gap-2 mt-1">
-              <h2 className="text-4xl font-extrabold text-white font-display tracking-tight">
-                {totalCaloriesConsumed}
-              </h2>
-              <span className="text-sm font-semibold text-slate-400 font-mono">
-                / {effectiveCalorieTarget} kcal
-              </span>
-              {extraBurnKcal > 0 && eatBonusCalories && (
-                <span className="text-[10px] text-amber-400 font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
-                  +{extraBurnKcal} bônus
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="text-right">
-            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest font-mono block">
+          {/* Centered Dial Information */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest font-mono">
               Restante
             </span>
-            <p className="text-xl font-extrabold text-emerald-400 font-mono mt-0.5">
-              {remainingCalories} <span className="text-xs text-emerald-500/70 font-normal">kcal</span>
-            </p>
-          </div>
-        </div>
-
-        {/* Global Thin Precision Progress Line */}
-        <div className="h-1.5 w-full bg-[#050811] rounded-full overflow-hidden border border-white/[0.05]">
-          <div
-            className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 rounded-full transition-all duration-500"
-            style={{ width: `${caloriePercentage}%` }}
-          />
-        </div>
-
-        {/* Déficit Real Integrado Banner (Estimulantes + TDEE - Ingestão) */}
-        <div className="p-3 rounded-2xl bg-[#060A14] border border-white/[0.06] flex items-center justify-between gap-3 text-xs font-mono">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
-              <TrendingDown className="w-4 h-4" />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-bold text-slate-200">Déficit Real Projetado:</span>
-                {extraBurnKcal > 0 && (
-                  <span className="text-[10px] text-amber-400 font-bold px-1 py-0.2 rounded bg-amber-500/15">
-                    +{extraBurnKcal} kcal café/pré
-                  </span>
-                )}
-              </div>
-              <p className="text-[10px] text-slate-400 font-sans">
-                {totalCaloriesConsumed === 0 
-                  ? `Se bater a meta de comida, seu déficit final será de -${plannedFullDeficit} kcal`
-                  : `Déficit acumulado até agora: -${netDeficitToday} kcal`}
-              </p>
-            </div>
-          </div>
-
-          <div className="text-right shrink-0">
-            <span className="text-sm font-black text-amber-400 font-mono">
-              -{totalCaloriesConsumed === 0 ? plannedFullDeficit : netDeficitToday} kcal
+            <h2 className="text-3xl font-black text-white font-display tracking-tight leading-none mt-1">
+              {remainingCalories}
+            </h2>
+            <span className="text-[11px] font-bold text-slate-400 font-mono mt-0.5">
+              kcal
             </span>
           </div>
         </div>
 
-        {/* Tremor-Style Minimalist Macro Cards */}
-        <div className="grid grid-cols-3 gap-2.5 pt-1">
-          {/* Protein */}
-          <div className="p-3 rounded-2xl bg-[#060A14] border border-white/[0.06] space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider font-mono">
-                Proteína
-              </span>
-              <span className="text-[10px] font-mono text-slate-400 font-bold">
-                {Math.round((totalProteinConsumed / stats.proteinGrams) * 100)}%
-              </span>
+        {/* Dial Meta Legend & Real Deficit Badge */}
+        <div className="w-full space-y-2 mt-2">
+          <div className="flex items-center justify-center gap-3 text-xs font-mono">
+            <span className="text-slate-400">
+              Ingerido: <strong className="text-white">{totalCaloriesConsumed}</strong>
+            </span>
+            <span className="text-slate-600">&bull;</span>
+            <span className="text-slate-400">
+              Meta: <strong className="text-white">{effectiveCalorieTarget}</strong> kcal
+            </span>
+          </div>
+
+          {/* Déficit Real Pill & Strategy Toggle */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#060A14] border border-white/[0.08] text-[11px] font-mono shadow-sm">
+              <TrendingDown className="w-3.5 h-3.5 text-amber-400" />
+              <span className="text-slate-300">Déficit Projetado:</span>
+              <strong className="text-amber-400 font-bold">
+                -{totalCaloriesConsumed === 0 ? plannedFullDeficit : netDeficitToday} kcal
+              </strong>
             </div>
-            <p className="text-sm font-extrabold text-white font-mono">
-              {Math.round(totalProteinConsumed)}<span className="text-slate-500 text-xs font-normal">/{stats.proteinGrams}g</span>
+
+            {extraBurnKcal > 0 && (
+              <button
+                type="button"
+                onClick={() => setEatBonusCalories(!eatBonusCalories)}
+                className="px-2.5 py-1 rounded-full bg-[#060A14] border border-amber-500/30 text-[10px] font-mono text-amber-300 hover:text-white btn-tactile flex items-center gap-1.5 shadow-sm"
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${eatBonusCalories ? 'bg-blue-400' : 'bg-amber-400 animate-pulse'}`} />
+                <span>{eatBonusCalories ? '+Comida (+198 kcal)' : 'Acelerar Déficit 🔥'}</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Macro Triple Pill Row */}
+        <div className="grid grid-cols-3 gap-2.5 w-full mt-4 pt-4 border-t border-white/[0.06]">
+          {/* Protein */}
+          <div className="p-2.5 rounded-2xl bg-[#060A14] border border-white/[0.06] flex flex-col items-center justify-center space-y-1">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-blue-500" />
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase font-mono">Proteína</span>
+            </div>
+            <p className="text-xs font-extrabold text-white font-mono">
+              {Math.round(totalProteinConsumed)}<span className="text-[10px] text-slate-500 font-normal">/{stats.proteinGrams}g</span>
             </p>
             <div className="h-1 w-full bg-slate-900 rounded-full overflow-hidden">
               <div
@@ -252,17 +273,13 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
           </div>
 
           {/* Carbs */}
-          <div className="p-3 rounded-2xl bg-[#060A14] border border-white/[0.06] space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider font-mono">
-                Carbos
-              </span>
-              <span className="text-[10px] font-mono text-slate-400 font-bold">
-                {Math.round((totalCarbsConsumed / stats.carbGrams) * 100)}%
-              </span>
+          <div className="p-2.5 rounded-2xl bg-[#060A14] border border-white/[0.06] flex flex-col items-center justify-center space-y-1">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase font-mono">Carbos</span>
             </div>
-            <p className="text-sm font-extrabold text-white font-mono">
-              {Math.round(totalCarbsConsumed)}<span className="text-slate-500 text-xs font-normal">/{stats.carbGrams}g</span>
+            <p className="text-xs font-extrabold text-white font-mono">
+              {Math.round(totalCarbsConsumed)}<span className="text-[10px] text-slate-500 font-normal">/{stats.carbGrams}g</span>
             </p>
             <div className="h-1 w-full bg-slate-900 rounded-full overflow-hidden">
               <div
@@ -273,17 +290,13 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
           </div>
 
           {/* Fats */}
-          <div className="p-3 rounded-2xl bg-[#060A14] border border-white/[0.06] space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider font-mono">
-                Gorduras
-              </span>
-              <span className="text-[10px] font-mono text-slate-400 font-bold">
-                {Math.round((totalFatConsumed / stats.fatGrams) * 100)}%
-              </span>
+          <div className="p-2.5 rounded-2xl bg-[#060A14] border border-white/[0.06] flex flex-col items-center justify-center space-y-1">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase font-mono">Gorduras</span>
             </div>
-            <p className="text-sm font-extrabold text-white font-mono">
-              {Math.round(totalFatConsumed)}<span className="text-slate-500 text-xs font-normal">/{stats.fatGrams}g</span>
+            <p className="text-xs font-extrabold text-white font-mono">
+              {Math.round(totalFatConsumed)}<span className="text-[10px] text-slate-500 font-normal">/{stats.fatGrams}g</span>
             </p>
             <div className="h-1 w-full bg-slate-900 rounded-full overflow-hidden">
               <div
@@ -293,172 +306,157 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
             </div>
           </div>
         </div>
-
-        {/* Water Bar */}
-        <div className="pt-2 flex items-center justify-between gap-3 text-xs border-t border-white/[0.06]">
-          <div className="flex items-center gap-2">
-            <Droplets className="w-4 h-4 text-cyan-400" />
-            <span className="text-slate-300 font-medium">Água:</span>
-            <span className="font-mono font-bold text-cyan-300">
-              {waterDrunkMl} / {stats.waterIntakeMl} ml
-            </span>
-          </div>
-
-          <div className="flex gap-1.5">
-            <button
-              onClick={() => setWaterDrunkMl((w) => w + 250)}
-              className="px-2.5 py-1 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-[11px] font-bold btn-tactile"
-            >
-              +250ml
-            </button>
-            <button
-              onClick={() => setWaterDrunkMl((w) => w + 500)}
-              className="px-2.5 py-1 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-[11px] font-bold btn-tactile"
-            >
-              +500ml
-            </button>
-          </div>
-        </div>
       </div>
 
-      {/* Thermogenic & Stimulant Burn Tracker Card (Linear Style com Ação Direta no Déficit) */}
-      <div className="p-4 rounded-3xl bg-[#090F1E] border border-white/[0.08] shadow-xl space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-amber-400 font-extrabold text-xs font-mono">
-            <Flame className="w-4 h-4 fill-amber-400" />
-            <span className="uppercase tracking-wider">Termogênese por Estimulantes</span>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono font-black text-amber-300">
-              +{thermogenicLog.totalThermogenicCaloriesBurned} kcal
+      {/* ========================================================= */}
+      {/* 2. BARRA DE PULSO DIÁRIO RÁPIDO (Café, Pré-Treino, Água)  */}
+      {/* ========================================================= */}
+      <div className="p-3.5 rounded-3xl bg-[#090F1E] border border-white/[0.08] shadow-lg flex items-center justify-between gap-2 overflow-x-auto">
+        {/* Café Pulse Pill */}
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-[#060A14] border border-white/[0.06] shrink-0">
+          <Coffee className="w-4 h-4 text-amber-400" />
+          <div className="text-left">
+            <span className="text-[10px] font-bold text-slate-300 block leading-tight">Café ({thermogenicLog.blackCoffeeCups}x)</span>
+            <span className="text-[9px] font-mono text-amber-400 font-bold">
+              +{thermogenicLog.blackCoffeeCups * (profile.coffeeConfig?.caffeineMg ? Math.round(profile.coffeeConfig.caffeineMg * 0.18) : 18)} kcal
             </span>
+          </div>
+          <div className="flex items-center gap-1 ml-1">
             <button
-              type="button"
-              onClick={() => setIsThermoConfigOpen(true)}
-              className="p-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-400 hover:text-white transition-colors btn-tactile"
-              title="Calibrar dosagens de café e pré-treino"
+              onClick={() => handleCoffeeChange(-1)}
+              disabled={thermogenicLog.blackCoffeeCups <= 0}
+              className="w-6 h-6 rounded-lg bg-slate-900 text-slate-300 disabled:opacity-30 text-xs font-bold btn-tactile flex items-center justify-center border border-white/5"
             >
-              <Settings2 className="w-3.5 h-3.5" />
+              -
+            </button>
+            <button
+              onClick={() => handleCoffeeChange(1)}
+              className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 text-xs font-bold btn-tactile flex items-center justify-center border border-amber-500/30"
+            >
+              +
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2.5">
-          {/* Coffee Tracker */}
-          <div className="p-3 rounded-2xl bg-[#060A14] border border-white/[0.06] space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
-                <Coffee className="w-4 h-4 text-amber-400" />
-                <span>Café Puro</span>
-              </div>
-              <span className="text-xs font-mono font-bold text-white">
-                {thermogenicLog.blackCoffeeCups}x
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-400 leading-tight font-mono">
-              {coffeeServingMl}ml (~{coffeeCaffeineMg}mg caf)
-            </p>
-            <div className="flex items-center gap-1.5 pt-1">
-              <button
-                onClick={() => handleCoffeeChange(-1)}
-                disabled={thermogenicLog.blackCoffeeCups <= 0}
-                className="flex-1 py-1 rounded-xl bg-[#0D1527] hover:bg-slate-800 disabled:opacity-30 text-xs font-bold text-slate-300 btn-tactile border border-white/5"
-              >
-                -1
-              </button>
-              <button
-                onClick={() => handleCoffeeChange(1)}
-                className="flex-1 py-1 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 text-xs font-bold text-amber-400 btn-tactile"
-              >
-                +1 ☕
-              </button>
-            </div>
+        {/* Pré-Treino Pulse Pill */}
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-[#060A14] border border-white/[0.06] shrink-0">
+          <Zap className="w-4 h-4 text-blue-400 fill-blue-400" />
+          <div className="text-left">
+            <span className="text-[10px] font-bold text-slate-300 block leading-tight">Pré-Treino ({thermogenicLog.preWorkoutDoses}d)</span>
+            <span className="text-[9px] font-mono text-blue-400 font-bold">
+              +{thermogenicLog.preWorkoutDoses * 87} kcal
+            </span>
           </div>
-
-          {/* Pre-Workout Tracker */}
-          <div className="p-3 rounded-2xl bg-[#060A14] border border-white/[0.06] space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
-                <Zap className="w-4 h-4 text-blue-400 fill-blue-400" />
-                <span>Pré-Treino</span>
-              </div>
-              <span className="text-xs font-mono font-bold text-white">
-                {thermogenicLog.preWorkoutDoses} dose
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-400 leading-tight truncate font-mono">
-              {preDoseGrams}g ({preCaffeineMg}mg caf)
-            </p>
-            <div className="flex items-center gap-1.5 pt-1">
-              <button
-                onClick={() => handlePreWorkoutChange(-1)}
-                disabled={thermogenicLog.preWorkoutDoses <= 0}
-                className="flex-1 py-1 rounded-xl bg-[#0D1527] hover:bg-slate-800 disabled:opacity-30 text-xs font-bold text-slate-300 btn-tactile border border-white/5"
-              >
-                -1
-              </button>
-              <button
-                onClick={() => handlePreWorkoutChange(1)}
-                className="flex-1 py-1 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-xs font-bold text-blue-400 btn-tactile"
-              >
-                +1 ⚡
-              </button>
-            </div>
+          <div className="flex items-center gap-1 ml-1">
+            <button
+              onClick={() => handlePreWorkoutChange(-1)}
+              disabled={thermogenicLog.preWorkoutDoses <= 0}
+              className="w-6 h-6 rounded-lg bg-slate-900 text-slate-300 disabled:opacity-30 text-xs font-bold btn-tactile flex items-center justify-center border border-white/5"
+            >
+              -
+            </button>
+            <button
+              onClick={() => handlePreWorkoutChange(1)}
+              className="w-6 h-6 rounded-lg bg-blue-500/20 text-blue-400 text-xs font-bold btn-tactile flex items-center justify-center border border-blue-500/30"
+            >
+              +
+            </button>
           </div>
         </div>
 
-        {/* Destino das Calorias Termogênicas Toggle */}
-        <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-xs">
-          <span className="text-[11px] text-slate-400">Como aplicar as calorias queimadas?</span>
+        {/* Água Pulse Pill */}
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-[#060A14] border border-white/[0.06] shrink-0">
+          <Droplets className="w-4 h-4 text-cyan-400" />
+          <div className="text-left">
+            <span className="text-[10px] font-bold text-slate-300 block leading-tight">Água</span>
+            <span className="text-[9px] font-mono text-cyan-400 font-bold">
+              {(waterDrunkMl / 1000).toFixed(1)} / {(stats.waterIntakeMl / 1000).toFixed(1)}L
+            </span>
+          </div>
           <button
-            type="button"
-            onClick={() => setEatBonusCalories(!eatBonusCalories)}
-            className="px-2.5 py-1 rounded-xl bg-[#060A14] border border-white/[0.08] text-[10px] font-mono font-bold text-slate-300 hover:text-white btn-tactile flex items-center gap-1.5"
+            onClick={() => setWaterDrunkMl((w) => w + 250)}
+            className="px-2 py-1 rounded-lg bg-cyan-500/15 text-cyan-400 text-[10px] font-bold btn-tactile border border-cyan-500/30"
           >
-            <span className={`w-2 h-2 rounded-full ${eatBonusCalories ? 'bg-blue-400' : 'bg-emerald-400'}`} />
-            <span>{eatBonusCalories ? 'Somar ao Orçamento (+Comida)' : 'Acelerar Déficit de Gordura 🔥'}</span>
+            +250
+          </button>
+        </div>
+
+        {/* Config Cog */}
+        <button
+          type="button"
+          onClick={() => setIsThermoConfigOpen(true)}
+          className="p-2 rounded-2xl bg-[#060A14] border border-white/[0.08] text-slate-400 hover:text-white btn-tactile shrink-0"
+          title="Calibrar Estimulantes"
+        >
+          <Settings2 className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* ========================================================= */}
+      {/* 3. BARRA DE AÇÕES DA DIETA                                */}
+      {/* ========================================================= */}
+      <div className="flex items-center justify-between gap-2 px-1">
+        <span className="text-xs font-extrabold text-slate-300 uppercase tracking-widest font-mono flex items-center gap-1.5">
+          <span>Timeline de Refeições</span>
+        </span>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsShoppingOpen(true)}
+            className="px-3 py-1.5 rounded-xl bg-[#090F1E] border border-white/[0.08] hover:border-emerald-500/40 text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile shadow-sm"
+          >
+            <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Compras</span>
+          </button>
+
+          <button
+            onClick={handleAddMeal}
+            className="px-3 py-1.5 rounded-xl bg-blue-600/20 border border-blue-500/40 text-blue-400 hover:bg-blue-600/30 text-xs font-bold transition-all flex items-center gap-1 btn-tactile shadow-sm"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Refeição</span>
+          </button>
+
+          <button
+            onClick={handleResetDay}
+            className="p-2 rounded-xl bg-[#090F1E] border border-white/[0.08] text-slate-400 hover:text-white btn-tactile"
+            title="Resetar Checks do Dia"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
-      {/* Action Bar */}
-      <div className="flex items-center justify-between gap-2">
-        <button
-          onClick={() => setIsShoppingOpen(true)}
-          className="flex-1 py-2.5 px-3 rounded-2xl bg-[#090F1E] border border-white/[0.08] hover:border-emerald-500/40 text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center justify-center gap-2 btn-tactile shadow-sm"
-        >
-          <ShoppingBag className="w-4 h-4 text-emerald-400" />
-          <span>Lista de Compras</span>
-        </button>
+      {/* ========================================================= */}
+      {/* 4. TIMELINE VERTICAL CONECTADA DE REFEIÇÕES               */}
+      {/* ========================================================= */}
+      <div className="relative pl-3 space-y-4">
+        {/* Continuous Left Timeline Rail */}
+        <div className="absolute left-[22px] top-4 bottom-4 w-[2px] bg-gradient-to-b from-blue-500 via-emerald-500 to-slate-800 pointer-events-none" />
 
-        <button
-          onClick={handleAddMeal}
-          className="py-2.5 px-4 rounded-2xl bg-blue-600/20 border border-blue-500/40 text-blue-400 hover:bg-blue-600/30 text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile shadow-sm"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Nova Refeição</span>
-        </button>
+        {mealPlans.map((meal, index) => {
+          const preset = HUMAN_MEAL_PRESETS[index] || { time: '18:00', icon: Sun };
+          const IconComponent = preset.icon;
 
-        <button
-          onClick={handleResetDay}
-          className="p-2.5 rounded-2xl bg-[#090F1E] border border-white/[0.08] text-slate-400 hover:text-white transition-all btn-tactile"
-          title="Resetar Checks do Dia"
-        >
-          <RotateCcw className="w-4 h-4" />
-        </button>
-      </div>
+          return (
+            <div key={meal.id || meal.order} className="relative flex items-start gap-3">
+              {/* Timeline Node Badge */}
+              <div className="w-7 h-7 rounded-full bg-[#050811] border-2 border-blue-500 text-blue-400 flex items-center justify-center shrink-0 z-10 shadow-md">
+                <IconComponent className="w-3.5 h-3.5" />
+              </div>
 
-      {/* Meals List */}
-      <div className="space-y-3">
-        {mealPlans.map((meal) => (
-          <MealCard
-            key={meal.id || meal.order}
-            meal={meal}
-            onUpdateMeal={handleUpdateMeal}
-            onDeleteMeal={mealPlans.length > 1 ? handleDeleteMeal : undefined}
-          />
-        ))}
+              {/* Meal Card Content */}
+              <div className="flex-1 min-w-0">
+                <MealCard
+                  meal={meal}
+                  timeLabel={preset.time}
+                  onUpdateMeal={handleUpdateMeal}
+                  onDeleteMeal={mealPlans.length > 1 ? handleDeleteMeal : undefined}
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Modais */}

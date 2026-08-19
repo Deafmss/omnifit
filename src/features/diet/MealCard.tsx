@@ -5,7 +5,8 @@ import {
   Repeat, 
   Check, 
   Edit2, 
-  X 
+  X,
+  Clock 
 } from 'lucide-react';
 import { MealPlan, FoodItem } from '../../core/storage/types';
 import { FOOD_DATABASE_MAP } from '../../core/data/tacoDatabase';
@@ -15,12 +16,14 @@ import { FoodPickerModal } from './FoodPickerModal';
 
 interface MealCardProps {
   meal: MealPlan;
+  timeLabel?: string;
   onUpdateMeal: (updated: MealPlan) => void;
   onDeleteMeal?: (id: number) => void;
 }
 
 export const MealCard: React.FC<MealCardProps> = ({
   meal,
+  timeLabel,
   onUpdateMeal,
   onDeleteMeal
 }) => {
@@ -69,13 +72,21 @@ export const MealCard: React.FC<MealCardProps> = ({
   };
 
   return (
-    <div className="p-4 rounded-3xl bg-[#090F1E] border border-white/[0.08] shadow-lg space-y-3.5">
-      {/* Header */}
+    <div className="p-4 rounded-3xl bg-[#090F1E] border border-white/[0.08] shadow-lg space-y-3.5 hover:border-white/[0.12] transition-all">
+      {/* Meal Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-extrabold text-sm text-white font-display tracking-tight">
-            {meal.name}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-extrabold text-sm text-white font-display tracking-tight">
+              {meal.name}
+            </h3>
+            {timeLabel && (
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#060A14] text-[10px] font-mono text-slate-400 border border-white/5">
+                <Clock className="w-2.5 h-2.5 text-blue-400" />
+                <span>{timeLabel}</span>
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-2 text-xs font-mono text-slate-400 mt-0.5">
             <span className="text-blue-400 font-bold">{currentTotals.calories} kcal</span>
             <span className="text-slate-600">&bull;</span>
@@ -114,7 +125,7 @@ export const MealCard: React.FC<MealCardProps> = ({
             onClick={() => setIsAddFoodOpen(true)}
             className="p-4 rounded-2xl border border-dashed border-white/[0.08] text-center text-slate-500 text-xs cursor-pointer hover:border-blue-500/40 hover:text-slate-400 transition-all"
           >
-            Nenhum alimento adicionado. Toque para incluir da tabela TACO.
+            Nenhum alimento cadastrado. Toque para incluir da tabela TACO.
           </div>
         ) : (
           meal.portions.map((portion, idx) => {
