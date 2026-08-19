@@ -203,9 +203,9 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
                 }}
                 className={`py-2 px-1 rounded-2xl flex flex-col items-center justify-center transition-all relative btn-tactile ${
                   isSelected
-                    ? 'bg-gradient-to-b from-emerald-500 to-teal-600 text-slate-950 shadow-md font-black scale-[1.03]'
+                    ? 'btn-lime text-slate-950 shadow-md font-black scale-[1.03]'
                     : isToday
-                    ? 'bg-[#060A14] border border-emerald-500/50 text-emerald-400'
+                    ? 'bg-[#060A14] border border-[#84CC16]/60 text-[#A3E635]'
                     : 'bg-[#060A14] border border-white/[0.04] text-slate-400 hover:text-white'
                 }`}
               >
@@ -216,7 +216,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
                 {/* Indicator Dot */}
                 <div className="mt-1 flex items-center gap-0.5">
                   {hasRoutine ? (
-                    <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-slate-950' : 'bg-emerald-400'}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-slate-950' : 'bg-[#A3E635]'}`} />
                   ) : (
                     <span className="w-1.5 h-1.5 rounded-full bg-slate-700" />
                   )}
@@ -224,7 +224,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
 
                 {/* Today Badge */}
                 {isToday && !isSelected && (
-                  <span className="absolute -top-1 px-1 rounded-full bg-emerald-500 text-slate-950 text-[7px] font-black uppercase">
+                  <span className="absolute -top-1 px-1 rounded-full bg-[#84CC16] text-slate-950 text-[7px] font-black uppercase">
                     Hoje
                   </span>
                 )}
@@ -310,27 +310,45 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
               </div>
             </div>
 
+            {/* Metric Pills (UI Kit Style) */}
+            <div className="grid grid-cols-3 gap-2 py-1">
+              <div className="p-2.5 rounded-2xl bg-[#060A14] border border-white/[0.06] text-center">
+                <span className="text-[10px] text-slate-400 block font-mono">Exercícios</span>
+                <span className="text-sm font-black text-white font-mono">{currentRoutine.exercises.length}</span>
+              </div>
+
+              <div className="p-2.5 rounded-2xl bg-[#060A14] border border-white/[0.06] text-center">
+                <span className="text-[10px] text-slate-400 block font-mono">Duração</span>
+                <span className="text-sm font-black text-white font-mono">~45 min</span>
+              </div>
+
+              <div className="p-2.5 rounded-2xl bg-[#060A14] border border-white/[0.06] text-center">
+                <span className="text-[10px] text-slate-400 block font-mono">Calorias</span>
+                <span className="text-sm font-black text-[#A3E635] font-mono">~{currentRoutine.exercises.length * 45} kcal</span>
+              </div>
+            </div>
+
             {/* Target Muscles Pills */}
-            <div className="flex flex-wrap gap-1.5 pt-1">
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
               {currentRoutine.targetMuscles.map((m) => (
                 <span
                   key={m}
-                  className="px-2.5 py-1 rounded-xl bg-[#060A14] border border-white/[0.06] text-[11px] font-bold text-slate-300 font-mono"
+                  className="px-2.5 py-0.5 rounded-xl bg-[#060A14] border border-white/[0.06] text-[10px] font-bold text-slate-300 font-mono"
                 >
                   {MUSCLE_LABELS[m] || m}
                 </span>
               ))}
             </div>
 
-            {/* Giant Start Button */}
+            {/* High-Impact Electric Lime Button (Gym UI Kit Style) */}
             <button
               onClick={() => setActiveRoutineToStart(currentRoutine)}
               disabled={currentRoutine.exercises.length === 0}
-              className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-blue-600 text-slate-950 font-display font-black text-sm uppercase tracking-wider shadow-xl shadow-emerald-500/20 hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full py-4 px-4 rounded-2xl btn-lime text-slate-950 font-display font-black text-sm uppercase tracking-wider shadow-lg shadow-lime-500/20 hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Play className="w-4 h-4 fill-current" />
               <span>
-                {selectedDay === todayDayIndex ? 'Iniciar Treino de Hoje ⚡' : `Iniciar Treino de ${currentDayInfo.short} ⚡`}
+                {selectedDay === todayDayIndex ? 'Iniciar Treino de Hoje' : `Iniciar Treino de ${currentDayInfo.short}`}
               </span>
             </button>
           </div>

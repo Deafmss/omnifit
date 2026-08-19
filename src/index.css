@@ -58,17 +58,21 @@
   transform: scale(0.97);
 }
 
-/* Glow Borders */
-.glow-blue {
-  box-shadow: 0 0 25px -5px rgba(0, 102, 255, 0.25);
+.glow-lime {
+  box-shadow: 0 0 25px -5px rgba(163, 230, 53, 0.35);
 }
 
-.glow-emerald {
-  box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.25);
+.btn-lime {
+  background-color: #84CC16;
+  color: #050811;
+  font-weight: 800;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
-
-.glow-amber {
-  box-shadow: 0 0 25px -5px rgba(245, 158, 11, 0.25);
+.btn-lime:hover {
+  background-color: #A3E635;
+}
+.btn-lime:active {
+  transform: scale(0.97);
 }
 
 /* Custom Scrollbar */

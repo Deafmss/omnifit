@@ -168,10 +168,10 @@ export const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
             <button
               key={m}
               onClick={() => setSelectedMuscle(m)}
-              className={`px-3 py-1 rounded-xl text-[11px] font-bold whitespace-nowrap transition-all btn-tactile ${
+              className={`px-3 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap transition-all btn-tactile ${
                 selectedMuscle === m
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-slate-900 text-slate-400 border border-white/5 hover:text-white'
+                  ? 'btn-lime text-slate-950 shadow-sm'
+                  : 'bg-[#060A14] text-slate-400 border border-white/5 hover:text-white'
               }`}
             >
               {m === 'all' ? 'Todos (+80)' : MUSCLE_LABELS[m]}
@@ -184,7 +184,7 @@ export const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
           {filtered.length === 0 ? (
             <div className="p-6 text-center text-slate-500 text-xs space-y-1">
               <p>Nenhum exercício encontrado com "{search}".</p>
-              <p className="text-[11px] text-blue-400 cursor-pointer" onClick={() => setIsCreatingCustom(true)}>
+              <p className="text-[11px] text-[#A3E635] cursor-pointer" onClick={() => setIsCreatingCustom(true)}>
                 Toque em "Criar Próprio" para cadastrar esta máquina!
               </p>
             </div>
@@ -202,7 +202,7 @@ export const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
                   }}
                   className={`p-3 rounded-2xl border text-xs cursor-pointer transition-all flex items-center justify-between gap-2 btn-tactile ${
                     isSelected
-                      ? 'bg-blue-600/20 border-blue-500 text-white shadow-sm'
+                      ? 'bg-[#0C1424] border-[#84CC16] text-white shadow-sm'
                       : 'bg-[#060A14] border-white/5 text-slate-300 hover:border-white/20'
                   }`}
                 >
@@ -213,7 +213,7 @@ export const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
                     </p>
                   </div>
                   {isSelected && (
-                    <span className="px-2 py-0.5 rounded-lg bg-blue-500 text-white font-extrabold text-[10px] font-mono shrink-0">
+                    <span className="px-2 py-0.5 rounded-lg bg-[#84CC16] text-slate-950 font-extrabold text-[10px] font-mono shrink-0">
                       Selecionado
                     </span>
                   )}
@@ -225,10 +225,10 @@ export const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
 
         {/* Config Selected */}
         {selectedExercise && (
-          <div className="p-4 rounded-3xl bg-[#060A14] border border-blue-500/30 space-y-3 animate-in fade-in">
+          <div className="p-4 rounded-3xl bg-[#060A14] border border-[#84CC16]/40 space-y-3 animate-in fade-in">
             <div className="flex items-center justify-between text-xs font-bold text-slate-200">
               <span>Configurar {selectedExercise.name}</span>
-              <span className="text-[10px] font-mono text-blue-400">{MUSCLE_LABELS[selectedExercise.primaryMuscle]}</span>
+              <span className="text-[10px] font-mono text-[#A3E635]">{MUSCLE_LABELS[selectedExercise.primaryMuscle]}</span>
             </div>
 
             <div className="grid grid-cols-3 gap-2 text-center text-xs">
@@ -238,7 +238,7 @@ export const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
                   type="number"
                   value={sets}
                   onChange={(e) => setSets(e.target.value === '' ? '' : e.target.value)}
-                  className="w-full mt-1 p-1 bg-slate-950 border border-white/10 rounded-xl text-center font-bold text-white font-mono focus:border-blue-500 focus:outline-none"
+                  className="w-full mt-1 p-1 bg-slate-950 border border-white/10 rounded-xl text-center font-bold text-white font-mono focus:border-[#84CC16] focus:outline-none"
                 />
               </div>
 
@@ -249,14 +249,14 @@ export const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
                     type="number"
                     value={minReps}
                     onChange={(e) => setMinReps(e.target.value === '' ? '' : e.target.value)}
-                    className="w-full p-1 bg-slate-950 border border-white/10 rounded-xl text-center font-bold text-white text-xs font-mono focus:border-blue-500 focus:outline-none"
+                    className="w-full p-1 bg-slate-950 border border-white/10 rounded-xl text-center font-bold text-white text-xs font-mono focus:border-[#84CC16] focus:outline-none"
                   />
                   <span>-</span>
                   <input
                     type="number"
                     value={maxReps}
                     onChange={(e) => setMaxReps(e.target.value === '' ? '' : e.target.value)}
-                    className="w-full p-1 bg-slate-950 border border-white/10 rounded-xl text-center font-bold text-white text-xs font-mono focus:border-blue-500 focus:outline-none"
+                    className="w-full p-1 bg-slate-950 border border-white/10 rounded-xl text-center font-bold text-white text-xs font-mono focus:border-[#84CC16] focus:outline-none"
                   />
                 </div>
               </div>
@@ -267,14 +267,14 @@ export const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
                   type="number"
                   value={restSecs}
                   onChange={(e) => setRestSecs(e.target.value === '' ? '' : e.target.value)}
-                  className="w-full mt-1 p-1 bg-slate-950 border border-white/10 rounded-xl text-center font-bold text-white font-mono focus:border-blue-500 focus:outline-none"
+                  className="w-full mt-1 p-1 bg-slate-950 border border-white/10 rounded-xl text-center font-bold text-white font-mono focus:border-[#84CC16] focus:outline-none"
                 />
               </div>
             </div>
 
             <button
               onClick={handleConfirm}
-              className="w-full py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-1.5 btn-tactile"
+              className="w-full py-3.5 rounded-2xl btn-lime text-slate-950 font-bold text-xs shadow-lg shadow-lime-500/20 transition-all flex items-center justify-center gap-1.5"
             >
               <Plus className="w-4 h-4" />
               <span>Adicionar ao Treino</span>

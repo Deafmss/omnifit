@@ -177,142 +177,129 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
   return (
     <div className="space-y-4 pb-28 max-w-lg mx-auto p-4 animate-in fade-in duration-300">
       {/* ========================================================= */}
-      {/* 1. HERO CIRCULAR ENERGY DIAL (Apple Watch / MacroFactor)   */}
+      {/* 1. HERO NUTRITION DIAL (Gym Mobile App UI Kit Style)      */}
       {/* ========================================================= */}
-      <div className="p-6 rounded-[32px] bg-[#090F1E] border border-white/[0.08] shadow-2xl relative overflow-hidden flex flex-col items-center justify-center text-center">
-        {/* Subtle Radial Glow */}
-        <div className="absolute -top-10 -right-10 w-48 h-48 bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="p-5 rounded-3xl bg-[#090F1E] border border-white/[0.08] shadow-2xl relative overflow-hidden">
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          {/* Left: Circular Dial Gauge */}
+          <div className="relative w-36 h-36 shrink-0 flex items-center justify-center">
+            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 160 160">
+              <circle
+                cx="80"
+                cy="80"
+                r={radius}
+                stroke="currentColor"
+                strokeWidth="11"
+                className="text-[#050811]"
+                fill="transparent"
+              />
+              <circle
+                cx="80"
+                cy="80"
+                r={radius}
+                stroke="#84CC16"
+                strokeWidth="11"
+                strokeDasharray={circumference}
+                strokeDashoffset={strokeDashoffset}
+                strokeLinecap="round"
+                className="transition-all duration-700 ease-out"
+                fill="transparent"
+              />
+            </svg>
 
-        {/* Circular Ring Gauge */}
-        <div className="relative w-44 h-44 flex items-center justify-center my-1">
-          <svg className="w-full h-full transform -rotate-90" viewBox="0 0 160 160">
-            {/* Background Track */}
-            <circle
-              cx="80"
-              cy="80"
-              r={radius}
-              stroke="currentColor"
-              strokeWidth="10"
-              className="text-[#050811]"
-              fill="transparent"
-            />
-            {/* Progress Stroke */}
-            <circle
-              cx="80"
-              cy="80"
-              r={radius}
-              stroke="url(#calorieGradient)"
-              strokeWidth="10"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              strokeLinecap="round"
-              className="transition-all duration-700 ease-out"
-              fill="transparent"
-            />
-            <defs>
-              <linearGradient id="calorieGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#0066FF" />
-                <stop offset="50%" stopColor="#38BDF8" />
-                <stop offset="100%" stopColor="#10B981" />
-              </linearGradient>
-            </defs>
-          </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+              <h2 className="text-2xl font-black text-white font-display tracking-tight leading-none">
+                {remainingCalories}
+              </h2>
+              <span className="text-[10px] font-bold text-slate-400 font-mono mt-0.5">
+                /{effectiveCalorieTarget} kcal
+              </span>
+              <span className="text-[9px] font-extrabold text-[#A3E635] uppercase font-mono mt-0.5">
+                Restante
+              </span>
+            </div>
+          </div>
 
-          {/* Centered Dial Information */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest font-mono">
-              Restante
-            </span>
-            <h2 className="text-3xl font-black text-white font-display tracking-tight leading-none mt-1">
-              {remainingCalories}
-            </h2>
-            <span className="text-[11px] font-bold text-slate-400 font-mono mt-0.5">
-              kcal
-            </span>
+          {/* Right: Vertical Macro Breakdown (UI Kit Reference Style) */}
+          <div className="flex-1 w-full space-y-2.5">
+            {/* Protein */}
+            <div className="p-2.5 rounded-2xl bg-[#060A14] border border-white/[0.05] space-y-1">
+              <div className="flex items-center justify-between text-xs font-mono">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[#84CC16]" />
+                  <span className="font-bold text-slate-200">Proteína</span>
+                </div>
+                <span className="font-black text-white">
+                  {Math.round(totalProteinConsumed)}<span className="text-slate-500 font-normal">/{stats.proteinGrams}g</span>
+                </span>
+              </div>
+              <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[#84CC16] rounded-full transition-all duration-300"
+                  style={{ width: `${Math.min(100, (totalProteinConsumed / stats.proteinGrams) * 100)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Carbs */}
+            <div className="p-2.5 rounded-2xl bg-[#060A14] border border-white/[0.05] space-y-1">
+              <div className="flex items-center justify-between text-xs font-mono">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-500" />
+                  <span className="font-bold text-slate-200">Carboidratos</span>
+                </div>
+                <span className="font-black text-white">
+                  {Math.round(totalCarbsConsumed)}<span className="text-slate-500 font-normal">/{stats.carbGrams}g</span>
+                </span>
+              </div>
+              <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-amber-500 rounded-full transition-all duration-300"
+                  style={{ width: `${Math.min(100, (totalCarbsConsumed / stats.carbGrams) * 100)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Fat */}
+            <div className="p-2.5 rounded-2xl bg-[#060A14] border border-white/[0.05] space-y-1">
+              <div className="flex items-center justify-between text-xs font-mono">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-purple-500" />
+                  <span className="font-bold text-slate-200">Gorduras</span>
+                </div>
+                <span className="font-black text-white">
+                  {Math.round(totalFatConsumed)}<span className="text-slate-500 font-normal">/{stats.fatGrams}g</span>
+                </span>
+              </div>
+              <div className="h-1.5 w-full bg-slate-900 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-purple-500 rounded-full transition-all duration-300"
+                  style={{ width: `${Math.min(100, (totalFatConsumed / stats.fatGrams) * 100)}%` }}
+                />
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Real-Time Deficit & Burn Badge */}
-        <div className="mt-2 space-y-1">
-          <div className="flex items-center justify-center gap-2 flex-wrap text-xs font-mono">
-            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#060A14] border border-white/[0.06]">
-              <span className="text-slate-400">Meta:</span>
-              <strong className="text-white font-bold">{effectiveCalorieTarget} kcal</strong>
-            </div>
-
-            <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-xs font-mono">
-              <span className="text-slate-300">Déficit Projetado:</span>
-              <strong className="text-amber-400 font-bold">
-                -{totalCaloriesConsumed === 0 ? plannedFullDeficit : netDeficitToday} kcal
-              </strong>
-            </div>
-
-            {extraBurnKcal > 0 && (
-              <button
-                type="button"
-                onClick={() => setEatBonusCalories(!eatBonusCalories)}
-                className="px-2.5 py-1 rounded-full bg-[#060A14] border border-amber-500/30 text-[10px] font-mono text-amber-300 hover:text-white btn-tactile flex items-center gap-1.5 shadow-sm"
-              >
-                <span className={`w-1.5 h-1.5 rounded-full ${eatBonusCalories ? 'bg-blue-400' : 'bg-amber-400 animate-pulse'}`} />
-                <span>{eatBonusCalories ? '+Comida (+198 kcal)' : 'Acelerar Déficit 🔥'}</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Macro Triple Pill Row */}
-        <div className="grid grid-cols-3 gap-2.5 w-full mt-4 pt-4 border-t border-white/[0.06]">
-          {/* Protein */}
-          <div className="p-2.5 rounded-2xl bg-[#060A14] border border-white/[0.06] flex flex-col items-center justify-center space-y-1">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-blue-500" />
-              <span className="text-[10px] font-extrabold text-slate-400 uppercase font-mono">Proteína</span>
-            </div>
-            <p className="text-xs font-extrabold text-white font-mono">
-              {Math.round(totalProteinConsumed)}<span className="text-[10px] text-slate-500 font-normal">/{stats.proteinGrams}g</span>
-            </p>
-            <div className="h-1 w-full bg-slate-900 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-blue-500 rounded-full transition-all duration-300"
-                style={{ width: `${Math.min(100, (totalProteinConsumed / stats.proteinGrams) * 100)}%` }}
-              />
-            </div>
+        <div className="mt-3 pt-3 border-t border-white/[0.06] flex items-center justify-between flex-wrap gap-2 text-xs font-mono">
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300">
+            <span>Déficit Projetado:</span>
+            <strong className="text-amber-400 font-bold">
+              -{totalCaloriesConsumed === 0 ? plannedFullDeficit : netDeficitToday} kcal
+            </strong>
           </div>
 
-          {/* Carbs */}
-          <div className="p-2.5 rounded-2xl bg-[#060A14] border border-white/[0.06] flex flex-col items-center justify-center space-y-1">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-amber-500" />
-              <span className="text-[10px] font-extrabold text-slate-400 uppercase font-mono">Carbos</span>
-            </div>
-            <p className="text-xs font-extrabold text-white font-mono">
-              {Math.round(totalCarbsConsumed)}<span className="text-[10px] text-slate-500 font-normal">/{stats.carbGrams}g</span>
-            </p>
-            <div className="h-1 w-full bg-slate-900 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-amber-500 rounded-full transition-all duration-300"
-                style={{ width: `${Math.min(100, (totalCarbsConsumed / stats.carbGrams) * 100)}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Fats */}
-          <div className="p-2.5 rounded-2xl bg-[#060A14] border border-white/[0.06] flex flex-col items-center justify-center space-y-1">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span className="text-[10px] font-extrabold text-slate-400 uppercase font-mono">Gorduras</span>
-            </div>
-            <p className="text-xs font-extrabold text-white font-mono">
-              {Math.round(totalFatConsumed)}<span className="text-[10px] text-slate-500 font-normal">/{stats.fatGrams}g</span>
-            </p>
-            <div className="h-1 w-full bg-slate-900 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-emerald-500 rounded-full transition-all duration-300"
-                style={{ width: `${Math.min(100, (totalFatConsumed / stats.fatGrams) * 100)}%` }}
-              />
-            </div>
-          </div>
+          {extraBurnKcal > 0 && (
+            <button
+              type="button"
+              onClick={() => setEatBonusCalories(!eatBonusCalories)}
+              className="px-2.5 py-1 rounded-full bg-[#060A14] border border-[#84CC16]/30 text-[10px] font-mono text-[#A3E635] hover:text-white btn-tactile flex items-center gap-1.5"
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${eatBonusCalories ? 'bg-blue-400' : 'bg-[#84CC16] animate-pulse'}`} />
+              <span>{eatBonusCalories ? '+Comida' : 'Acelerar Déficit 🔥'}</span>
+            </button>
+          )}
         </div>
       </div>
 

@@ -34,8 +34,8 @@ export const VolumeTonnageChart: React.FC<VolumeTonnageChartProps> = ({ sessions
       {/* Header Info */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs font-mono">
-          <Trophy className="w-4 h-4 text-blue-400" />
-          <span className="font-bold text-slate-200">Sobrecarga Progressiva (Toneladas)</span>
+          <Trophy className="w-4 h-4 text-[#A3E635]" />
+          <span className="font-bold text-slate-200">Sobrecarga & Volume Semanal</span>
         </div>
 
         {activeSession && (
@@ -43,14 +43,14 @@ export const VolumeTonnageChart: React.FC<VolumeTonnageChartProps> = ({ sessions
             <span className="text-xs font-black text-white">
               {(activeSession.totalVolumeLoadKg / 1000).toFixed(1)} toneladas
             </span>
-            <span className="text-[10px] text-blue-400 block font-bold truncate max-w-[150px]">
+            <span className="text-[10px] text-[#A3E635] block font-bold truncate max-w-[150px]">
               {activeSession.name}
             </span>
           </div>
         )}
       </div>
 
-      {/* Bar Chart Area */}
+      {/* Bar Chart Area (Gym UI Kit Style) */}
       <div className="h-32 flex items-end justify-between gap-2 pt-6 px-1">
         {data.map((s, idx) => {
           const ton = Number((s.totalVolumeLoadKg / 1000).toFixed(1));
@@ -67,20 +67,20 @@ export const VolumeTonnageChart: React.FC<VolumeTonnageChartProps> = ({ sessions
               {/* Tonnage value tag */}
               <span
                 className={`text-[9px] font-mono font-extrabold transition-all ${
-                  isHovered ? 'text-blue-400 scale-110' : 'text-slate-500'
+                  isHovered ? 'text-[#A3E635] scale-110' : 'text-slate-500'
                 }`}
               >
                 {ton}t
               </span>
 
               {/* Bar */}
-              <div className="w-full max-w-[32px] bg-[#060A14] rounded-xl h-full flex items-end p-0.5 border border-white/[0.04] overflow-hidden">
+              <div className="w-full max-w-[32px] bg-[#060A14] rounded-2xl h-full flex items-end p-0.5 border border-white/[0.04] overflow-hidden">
                 <div
                   style={{ height: `${heightPercent}%` }}
-                  className={`w-full rounded-lg transition-all duration-500 ${
+                  className={`w-full rounded-xl transition-all duration-500 ${
                     isHovered
-                      ? 'bg-gradient-to-t from-blue-600 via-teal-400 to-emerald-400 glow-emerald'
-                      : 'bg-gradient-to-t from-blue-600 to-teal-500 opacity-80 group-hover:opacity-100'
+                      ? 'bg-[#A3E635] glow-lime'
+                      : 'bg-[#84CC16] opacity-85 group-hover:opacity-100'
                   }`}
                 />
               </div>
@@ -97,7 +97,7 @@ export const VolumeTonnageChart: React.FC<VolumeTonnageChartProps> = ({ sessions
       {/* Footer Legend */}
       <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 pt-1 border-t border-white/[0.04]">
         <span>Volume mecânico total por sessão</span>
-        <span className="text-blue-400 font-bold">Últimos treinos</span>
+        <span className="text-[#A3E635] font-bold">Frequência Semanal</span>
       </div>
     </div>
   );

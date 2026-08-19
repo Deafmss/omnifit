@@ -144,7 +144,7 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
             onClick={() => setActiveChartTab('weight')}
             className={`flex-1 py-2 px-3 rounded-xl font-display font-bold text-xs flex items-center justify-center gap-1.5 transition-all btn-tactile ${
               activeChartTab === 'weight'
-                ? 'bg-gradient-to-r from-blue-600 to-emerald-500 text-white shadow-md'
+                ? 'btn-lime text-slate-950 shadow-md'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
@@ -157,12 +157,12 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
             onClick={() => setActiveChartTab('tonnage')}
             className={`flex-1 py-2 px-3 rounded-xl font-display font-bold text-xs flex items-center justify-center gap-1.5 transition-all btn-tactile ${
               activeChartTab === 'tonnage'
-                ? 'bg-gradient-to-r from-blue-600 to-emerald-500 text-white shadow-md'
+                ? 'btn-lime text-slate-950 shadow-md'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
             <BarChart3 className="w-3.5 h-3.5" />
-            <span>Sobrecarga de Treinos</span>
+            <span>Volume Semanal</span>
           </button>
         </div>
 
