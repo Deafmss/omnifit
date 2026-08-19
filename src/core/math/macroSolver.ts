@@ -157,3 +157,42 @@ export function generateWeeklyShoppingList(
     return a.name.localeCompare(b.name);
   });
 }
+
+export interface HouseholdPortionDisplay {
+  label: string;
+  hasHousehold: boolean;
+  unitName?: string;
+  units?: number;
+  grams: number;
+}
+
+/**
+ * Converte gramas para medidas caseiras intuitivas do dia a dia.
+ */
+export function formatHouseholdPortion(food: FoodItem, grams: number): HouseholdPortionDisplay {
+  if (food.servingUnit && food.servingGrams && food.servingGrams > 0) {
+    const rawUnits = grams / food.servingGrams;
+    const roundedUnits = Math.round(rawUnits * 10) / 10;
+    const countStr = roundedUnits % 1 === 0 ? roundedUnits.toString() : roundedUnits.toFixed(1);
+    
+    // Tratamento de pluralização
+    const baseUnit = food.servingUnit.replace(/\(s\)/g, '');
+    const unitText = roundedUnits === 1 ? baseUnit : `${baseUnit}s`;
+
+    return {
+      label: `${countStr} ${unitText} (${grams}g)`,
+      hasHousehold: true,
+      unitName: baseUnit,
+      units: roundedUnits,
+      grams
+    };
+  }
+
+  // Fallback se não tiver medida cadastrada
+  return {
+    label: `${grams}g`,
+    hasHousehold: false,
+    grams
+  };
+}
+

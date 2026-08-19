@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { MealPlan, FoodItem } from '../../core/storage/types';
 import { FOOD_DATABASE_MAP } from '../../core/data/tacoDatabase';
-import { calculatePortionsTotal, calculateFoodNutrients } from '../../core/math/macroSolver';
+import { calculatePortionsTotal, calculateFoodNutrients, formatHouseholdPortion } from '../../core/math/macroSolver';
 import { MacroSwapModal } from './MacroSwapModal';
 import { FoodPickerModal } from './FoodPickerModal';
 
@@ -69,6 +69,14 @@ export const MealCard: React.FC<MealCardProps> = ({
     newPortions[index].grams = Math.max(1, cleanGrams);
     onUpdateMeal({ ...meal, portions: newPortions });
     setEditingGramsIndex(null);
+  };
+
+  const handleAdjustHouseholdUnits = (index: number, delta: number, servingGrams: number) => {
+    const newPortions = [...meal.portions];
+    const currentGrams = newPortions[index].grams;
+    const newGrams = Math.max(servingGrams, currentGrams + (delta * servingGrams));
+    newPortions[index].grams = newGrams;
+    onUpdateMeal({ ...meal, portions: newPortions });
   };
 
   return (
@@ -133,6 +141,7 @@ export const MealCard: React.FC<MealCardProps> = ({
             if (!food) return null;
 
             const nutrients = calculateFoodNutrients(food, portion.grams);
+            const household = formatHouseholdPortion(food, portion.grams);
             const isEditing = editingGramsIndex === idx;
 
             return (
@@ -171,7 +180,7 @@ export const MealCard: React.FC<MealCardProps> = ({
                   </div>
                 </div>
 
-                {/* Grams & Actions */}
+                {/* Grams / Household Units & Actions */}
                 <div className="flex items-center gap-1.5 shrink-0">
                   {isEditing ? (
                     <div className="flex items-center gap-1">
@@ -191,16 +200,51 @@ export const MealCard: React.FC<MealCardProps> = ({
                       </button>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => {
-                        setEditingGramsIndex(idx);
-                        setTempGrams(portion.grams);
-                      }}
-                      className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#0E1629] hover:bg-slate-800 text-xs font-bold text-slate-300 font-mono border border-white/5 transition-all btn-tactile"
-                    >
-                      <span>{portion.grams}g</span>
-                      <Edit2 className="w-2.5 h-2.5 text-slate-500" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      {/* Se o alimento tiver medida caseira (ex: ovos, pão, scoop) */}
+                      {household.hasHousehold && food.servingGrams ? (
+                        <div className="flex items-center gap-1 bg-[#0E1629] border border-white/5 rounded-xl px-1.5 py-0.5">
+                          <button
+                            type="button"
+                            onClick={() => handleAdjustHouseholdUnits(idx, -1, food.servingGrams!)}
+                            className="w-4 h-4 rounded text-slate-400 hover:text-white flex items-center justify-center text-xs font-bold"
+                          >
+                            -
+                          </button>
+                          
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingGramsIndex(idx);
+                              setTempGrams(portion.grams);
+                            }}
+                            className="text-xs font-bold text-slate-200 font-mono px-1 hover:text-blue-400 transition-colors"
+                            title="Clique para editar gramas exatas"
+                          >
+                            {household.units} {household.unitName} <span className="text-slate-500 text-[10px]">({portion.grams}g)</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleAdjustHouseholdUnits(idx, 1, food.servingGrams!)}
+                            className="w-4 h-4 rounded text-slate-400 hover:text-white flex items-center justify-center text-xs font-bold"
+                          >
+                            +
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setEditingGramsIndex(idx);
+                            setTempGrams(portion.grams);
+                          }}
+                          className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#0E1629] hover:bg-slate-800 text-xs font-bold text-slate-300 font-mono border border-white/5 transition-all btn-tactile"
+                        >
+                          <span>{portion.grams}g</span>
+                          <Edit2 className="w-2.5 h-2.5 text-slate-500" />
+                        </button>
+                      )}
+                    </div>
                   )}
 
                   {/* Macro Swap Button */}

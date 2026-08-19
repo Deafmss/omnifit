@@ -88,6 +88,8 @@ export interface FoodItem {
   category: 'protein' | 'carb' | 'fat' | 'vegetable' | 'fruit' | 'dairy' | 'supplement';
   servingName: string;
   baseGrams: number;
+  servingUnit?: string;
+  servingGrams?: number;
   caloriesPer100g: number;
   proteinPer100g: number;
   carbsPer100g: number;
