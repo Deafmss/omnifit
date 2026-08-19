@@ -18,30 +18,30 @@ export const Header: React.FC<HeaderProps> = ({
   const getTabTitle = () => {
     switch (activeTab) {
       case 'diet':
-        return { title: 'Nutrição & Dieta', subtitle: 'Balanço calórico e macros de precisão' };
+        return { title: 'Nutrição de Precisão', subtitle: 'Balanço calórico e tabela TACO' };
       case 'workout':
-        return { title: 'Treino & Volume', subtitle: 'Periodização e sobrecarga progressiva' };
+        return { title: 'Ficha & Biomecânica', subtitle: 'Volume MAV e sobrecarga progressiva' };
       case 'progress':
-        return { title: 'Evolução Adaptativa', subtitle: 'Tendência de peso e recalibração' };
+        return { title: 'Evolução Adaptativa', subtitle: 'Filtro EMA e taxa metabólica real' };
     }
   };
 
   const { title, subtitle } = getTabTitle();
 
   return (
-    <header className="sticky top-0 z-40 bg-[#070D18]/90 backdrop-blur-md border-b border-white/10 px-4 py-3 safe-top">
+    <header className="sticky top-0 z-40 bg-[#050811]/85 backdrop-blur-2xl border-b border-white/[0.08] px-4 py-3 safe-top">
       <div className="max-w-lg mx-auto flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-emerald-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
-            {activeTab === 'diet' && <Utensils className="w-5 h-5 text-white" />}
-            {activeTab === 'workout' && <Dumbbell className="w-5 h-5 text-white" />}
-            {activeTab === 'progress' && <TrendingUp className="w-5 h-5 text-white" />}
+          <div className="w-10 h-10 rounded-2xl bg-[#0E1629] border border-blue-500/30 flex items-center justify-center shadow-lg shadow-blue-950/40 text-blue-400">
+            {activeTab === 'diet' && <Utensils className="w-5 h-5" />}
+            {activeTab === 'workout' && <Dumbbell className="w-5 h-5" />}
+            {activeTab === 'progress' && <TrendingUp className="w-5 h-5" />}
           </div>
           <div>
-            <h1 className="text-base font-bold text-white tracking-tight font-display flex items-center gap-2">
+            <h1 className="text-base font-extrabold text-white tracking-tight font-display">
               {title}
             </h1>
-            <p className="text-xs text-slate-400 font-medium truncate max-w-[200px]">
+            <p className="text-[11px] text-slate-400 font-medium truncate max-w-[200px]">
               {subtitle}
             </p>
           </div>
@@ -50,7 +50,7 @@ export const Header: React.FC<HeaderProps> = ({
         {stats && profile && (
           <button
             onClick={onOpenSettings}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800/80 border border-white/10 hover:border-blue-500/50 transition-all text-xs font-semibold text-slate-300 active:scale-95"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#0E1629] border border-white/[0.08] hover:border-amber-500/40 transition-all text-xs font-mono font-bold text-slate-200 btn-tactile shadow-sm"
           >
             <Flame className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
             <span>{stats.targetCalories} kcal</span>

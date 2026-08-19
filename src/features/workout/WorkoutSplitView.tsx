@@ -66,130 +66,151 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
 
     await db.routines.update(currentRoutine.id, { exercises: newExercises });
     loadRoutines();
-    setIsAddExerciseOpen(false);
   };
 
-  const handleRemoveExercise = async (exerciseIdx: number) => {
+  const handleRemoveExercise = async (index: number) => {
     if (!currentRoutine?.id) return;
-    const newExercises = currentRoutine.exercises.filter((_, i) => i !== exerciseIdx);
+    const newExercises = currentRoutine.exercises.filter((_, i) => i !== index);
     await db.routines.update(currentRoutine.id, { exercises: newExercises });
     loadRoutines();
   };
 
   return (
-    <div className="space-y-5 pb-24 max-w-lg mx-auto p-4">
-      {/* Top Controls */}
-      <div className="flex items-center justify-between gap-2">
-        <button
-          onClick={() => setIsAuditorOpen(true)}
-          className="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-950/50 to-slate-900 border border-emerald-500/30 hover:border-emerald-500/60 text-emerald-400 text-xs font-bold transition-all flex items-center justify-center gap-2 active:scale-95"
-        >
-          <ShieldCheck className="w-4 h-4" />
-          <span>Auditoria de Volume (MEV/MAV)</span>
-        </button>
+    <div className="space-y-4 pb-24 max-w-lg mx-auto p-4 animate-in fade-in duration-300">
+      {/* Splits Navigation Bar */}
+      <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1">
+        {routines.map((r, idx) => (
+          <button
+            key={r.id || idx}
+            onClick={() => setSelectedRoutineIndex(idx)}
+            className={`py-2 px-4 rounded-2xl font-display font-extrabold text-xs tracking-wide transition-all whitespace-nowrap btn-tactile ${
+              selectedRoutineIndex === idx
+                ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20 glow-emerald scale-[1.02]'
+                : 'bg-[#090F1E] border border-white/[0.08] text-slate-400 hover:text-white'
+            }`}
+          >
+            Treino {r.splitCode}
+          </button>
+        ))}
 
         <button
           onClick={handleRegenerate}
-          className="p-2.5 rounded-xl bg-slate-900 border border-white/10 text-slate-400 hover:text-white transition-all active:scale-95"
-          title="Regenerar Fichas Científicas"
+          className="p-2 rounded-2xl bg-[#090F1E] border border-white/[0.08] text-slate-400 hover:text-white transition-all btn-tactile ml-auto shrink-0"
+          title="Regenerar Fichas Automáticas"
         >
           <RotateCcw className="w-4 h-4" />
         </button>
       </div>
 
-      {/* Routine Split Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-        {routines.map((r, idx) => (
-          <button
-            key={r.id || idx}
-            onClick={() => setSelectedRoutineIndex(idx)}
-            className={`py-2 px-4 rounded-xl border text-xs font-bold whitespace-nowrap transition-all flex items-center gap-2 ${
-              selectedRoutineIndex === idx
-                ? 'bg-blue-600 border-blue-400 text-white shadow-lg shadow-blue-500/20 scale-[1.02]'
-                : 'bg-slate-900/80 border-white/10 text-slate-400 hover:border-white/20'
-            }`}
-          >
-            <span className="w-5 h-5 rounded-md bg-black/30 flex items-center justify-center font-mono text-[10px]">
-              {r.splitCode}
-            </span>
-            <span>{r.name.split('-')[0].trim()}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Current Routine Card */}
+      {/* Routine Detail Card */}
       {currentRoutine && (
-        <div className="space-y-4">
-          <div className="p-5 rounded-3xl bg-[#0D1527] border border-white/10 shadow-xl space-y-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <span className="text-[10px] font-extrabold text-blue-400 uppercase tracking-wider">
-                  Divisão Selecionada
+        <div className="space-y-3">
+          {/* Main Action Banner */}
+          <div className="p-5 rounded-3xl bg-[#090F1E] border border-white/[0.09] shadow-xl space-y-4 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="flex items-start justify-between relative z-10">
+              <div className="space-y-1">
+                <span className="px-2.5 py-0.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 rounded-full text-[10px] font-extrabold uppercase tracking-wider font-mono">
+                  Divisão {currentRoutine.splitCode}
                 </span>
-                <h3 className="text-lg font-bold text-white font-display mt-0.5">
+                <h2 className="text-xl font-extrabold text-white font-display tracking-tight mt-1">
                   {currentRoutine.name}
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {currentRoutine.exercises.length} exercícios planejados
+                </h2>
+                <p className="text-xs text-slate-400">
+                  {currentRoutine.exercises.length} exercícios &bull; Volume Total:{' '}
+                  <span className="font-mono text-slate-200 font-bold">
+                    {currentRoutine.exercises.reduce((a, b) => a + b.targetSets, 0)} séries
+                  </span>
                 </p>
               </div>
 
               <button
-                onClick={() => setIsAddExerciseOpen(true)}
-                className="p-2 rounded-xl bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-500/30 text-xs font-bold flex items-center gap-1 active:scale-95 transition-all"
-                title="Adicionar Exercício"
+                onClick={() => setIsAuditorOpen(true)}
+                className="p-2 rounded-2xl bg-[#060A14] border border-white/[0.08] text-slate-300 hover:text-emerald-400 text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile"
+                title="Auditar Volume MAV/MRV"
               >
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">Adicionar</span>
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span className="hidden sm:inline">Auditar Volume</span>
               </button>
             </div>
 
-            {/* Big Workout Start Button */}
+            {/* Target Muscles Pills */}
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {currentRoutine.targetMuscles.map((m) => (
+                <span
+                  key={m}
+                  className="px-2.5 py-1 rounded-xl bg-[#060A14] border border-white/[0.06] text-[11px] font-bold text-slate-300 font-mono"
+                >
+                  {MUSCLE_LABELS[m]}
+                </span>
+              ))}
+            </div>
+
+            {/* Giant Start Button */}
             <button
               onClick={() => setActiveRoutineToStart(currentRoutine)}
-              className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-blue-600 text-slate-950 font-black text-sm shadow-xl shadow-emerald-500/20 hover:brightness-110 transition-all flex items-center justify-center gap-2 active:scale-98"
+              className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-blue-600 text-slate-950 font-display font-black text-sm uppercase tracking-wider shadow-xl shadow-emerald-500/20 hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
             >
-              <Play className="w-5 h-5 fill-slate-950" />
-              <span>INICIAR TREINO NA ACADEMIA ⚡</span>
+              <Play className="w-4 h-4 fill-current" />
+              <span>Iniciar Treino na Academia ⚡</span>
             </button>
           </div>
 
-          {/* Exercise List */}
+          {/* Exercises Header */}
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest font-mono">
+              Sequência de Exercícios
+            </span>
+
+            <button
+              onClick={() => setIsAddExerciseOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-blue-600/15 border border-blue-500/30 text-blue-400 hover:bg-blue-600/25 text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Adicionar Exercício</span>
+            </button>
+          </div>
+
+          {/* Exercises List */}
           <div className="space-y-2.5">
-            {currentRoutine.exercises.map((exEntry, exIdx) => {
-              const exercise = EXERCISE_DATABASE_MAP.get(exEntry.exerciseId);
+            {currentRoutine.exercises.map((item, idx) => {
+              const exercise = EXERCISE_DATABASE_MAP.get(item.exerciseId);
               if (!exercise) return null;
 
               return (
                 <div
-                  key={`${exEntry.exerciseId}-${exIdx}`}
-                  className="p-4 rounded-2xl bg-[#0D1527] border border-white/5 hover:border-white/10 transition-all flex items-center justify-between gap-3 shadow-md"
+                  key={`${item.exerciseId}-${idx}`}
+                  className="p-3.5 rounded-2xl bg-[#090F1E] border border-white/[0.08] shadow-sm flex items-center justify-between gap-3 hover:border-white/[0.14] transition-all"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-slate-900 border border-white/5 flex items-center justify-center text-slate-400 shrink-0 font-mono font-bold text-xs">
-                      #{exIdx + 1}
+                    <div className="w-8 h-8 rounded-xl bg-[#060A14] border border-white/[0.06] flex items-center justify-center text-xs font-black text-slate-400 font-mono shrink-0">
+                      {idx + 1}
                     </div>
 
                     <div className="min-w-0">
-                      <h4 className="text-xs font-bold text-white truncate">
+                      <h4 className="font-bold text-xs text-slate-100 truncate">
                         {exercise.name}
                       </h4>
                       <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-                        <strong className="text-emerald-400 font-bold">{exEntry.targetSets}</strong> séries &bull; {exEntry.minReps}-{exEntry.maxReps} reps &bull; {exEntry.restSeconds}s
+                        <span className="text-emerald-400 font-bold">{item.targetSets} séries</span> &bull; {item.minReps}-{item.maxReps} reps &bull; {item.restSeconds}s descanso
                       </p>
-                      <span className="inline-block text-[10px] text-slate-500 font-medium">
-                        {MUSCLE_LABELS[exercise.primaryMuscle]}
-                      </span>
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => handleRemoveExercise(exIdx)}
-                    className="p-2 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0 active:scale-95"
-                    title="Remover exercício da ficha"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="px-2 py-0.5 rounded-lg bg-[#060A14] text-[10px] font-bold text-slate-400 uppercase font-mono border border-white/5">
+                      {exercise.category}
+                    </span>
+
+                    <button
+                      onClick={() => handleRemoveExercise(idx)}
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all btn-tactile"
+                      title="Remover"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -197,20 +218,16 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
         </div>
       )}
 
-      {/* Active Workout Session Modal */}
+      {/* Modais */}
       {activeRoutineToStart && (
         <ActiveWorkoutModal
           isOpen={true}
-          onClose={() => {
-            setActiveRoutineToStart(null);
-            loadRoutines();
-          }}
+          onClose={() => setActiveRoutineToStart(null)}
           routine={activeRoutineToStart}
           profile={profile}
         />
       )}
 
-      {/* Workout Auditor Modal */}
       <WorkoutAuditorModal
         isOpen={isAuditorOpen}
         onClose={() => setIsAuditorOpen(false)}
@@ -218,7 +235,6 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
         level={profile.experienceLevel}
       />
 
-      {/* Exercise Selector Modal */}
       <ExerciseSelectorModal
         isOpen={isAddExerciseOpen}
         onClose={() => setIsAddExerciseOpen(false)}

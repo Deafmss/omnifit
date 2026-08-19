@@ -1,15 +1,22 @@
 import React, { useState } from 'react';
-import { Check, Plus, Repeat, Trash2, Edit2 } from 'lucide-react';
+import { 
+  Plus, 
+  Trash2, 
+  Repeat, 
+  Check, 
+  Edit2, 
+  X 
+} from 'lucide-react';
 import { MealPlan, FoodItem } from '../../core/storage/types';
 import { FOOD_DATABASE_MAP } from '../../core/data/tacoDatabase';
-import { calculateFoodNutrients, calculatePortionsTotal } from '../../core/math/macroSolver';
+import { calculatePortionsTotal, calculateFoodNutrients } from '../../core/math/macroSolver';
 import { MacroSwapModal } from './MacroSwapModal';
 import { FoodPickerModal } from './FoodPickerModal';
 
 interface MealCardProps {
   meal: MealPlan;
-  onUpdateMeal: (updatedMeal: MealPlan) => void;
-  onDeleteMeal?: (mealId: number) => void;
+  onUpdateMeal: (updated: MealPlan) => void;
+  onDeleteMeal?: (id: number) => void;
 }
 
 export const MealCard: React.FC<MealCardProps> = ({
@@ -62,20 +69,20 @@ export const MealCard: React.FC<MealCardProps> = ({
   };
 
   return (
-    <div className="rounded-2xl bg-[#0D1527] border border-white/10 overflow-hidden shadow-lg space-y-3 p-4">
-      {/* Card Header */}
-      <div className="flex items-center justify-between border-b border-white/5 pb-3">
+    <div className="p-4 rounded-3xl bg-[#090F1E] border border-white/[0.08] shadow-lg space-y-3.5">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-base font-bold text-white font-display tracking-tight">
+          <h3 className="font-extrabold text-sm text-white font-display tracking-tight">
             {meal.name}
           </h3>
           <div className="flex items-center gap-2 text-xs font-mono text-slate-400 mt-0.5">
             <span className="text-blue-400 font-bold">{currentTotals.calories} kcal</span>
-            <span>&bull;</span>
+            <span className="text-slate-600">&bull;</span>
             <span>P: {currentTotals.protein}g</span>
-            <span>&bull;</span>
+            <span className="text-slate-600">&bull;</span>
             <span>C: {currentTotals.carbs}g</span>
-            <span>&bull;</span>
+            <span className="text-slate-600">&bull;</span>
             <span>G: {currentTotals.fat}g</span>
           </div>
         </div>
@@ -83,7 +90,7 @@ export const MealCard: React.FC<MealCardProps> = ({
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => setIsAddFoodOpen(true)}
-            className="p-1.5 rounded-lg bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-500/30 transition-all text-xs font-bold flex items-center gap-1 active:scale-95"
+            className="p-1.5 rounded-xl bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-500/30 transition-all text-xs font-bold flex items-center gap-1 btn-tactile"
             title="Adicionar Alimento"
           >
             <Plus className="w-4 h-4" />
@@ -91,7 +98,7 @@ export const MealCard: React.FC<MealCardProps> = ({
           {onDeleteMeal && meal.id && (
             <button
               onClick={() => onDeleteMeal(meal.id!)}
-              className="p-1.5 rounded-lg bg-red-600/10 text-red-400 hover:bg-red-600/20 border border-red-500/20 transition-all active:scale-95"
+              className="p-1.5 rounded-xl bg-red-600/10 text-red-400 hover:bg-red-600/20 border border-red-500/20 transition-all btn-tactile"
               title="Excluir Refeição"
             >
               <Trash2 className="w-4 h-4" />
@@ -102,107 +109,119 @@ export const MealCard: React.FC<MealCardProps> = ({
 
       {/* Food Portions List */}
       <div className="space-y-2">
-        {meal.portions.map((portion, idx) => {
-          const food = FOOD_DATABASE_MAP.get(portion.foodId);
-          if (!food) return null;
+        {meal.portions.length === 0 ? (
+          <div 
+            onClick={() => setIsAddFoodOpen(true)}
+            className="p-4 rounded-2xl border border-dashed border-white/[0.08] text-center text-slate-500 text-xs cursor-pointer hover:border-blue-500/40 hover:text-slate-400 transition-all"
+          >
+            Nenhum alimento adicionado. Toque para incluir da tabela TACO.
+          </div>
+        ) : (
+          meal.portions.map((portion, idx) => {
+            const food = FOOD_DATABASE_MAP.get(portion.foodId);
+            if (!food) return null;
 
-          const nutrients = calculateFoodNutrients(food, portion.grams);
-          const isEditing = editingGramsIndex === idx;
+            const nutrients = calculateFoodNutrients(food, portion.grams);
+            const isEditing = editingGramsIndex === idx;
 
-          return (
-            <div
-              key={`${portion.foodId}-${idx}`}
-              className={`p-2.5 rounded-xl border transition-all flex items-center justify-between gap-3 ${
-                portion.consumed
-                  ? 'bg-slate-950/60 border-white/5 opacity-60'
-                  : 'bg-slate-900/60 border-white/5 hover:border-white/10'
-              }`}
-            >
-              {/* Checkbox & Name */}
-              <div className="flex items-center gap-3 min-w-0">
-                <button
-                  onClick={() => togglePortionConsumed(idx)}
-                  className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all shrink-0 ${
-                    portion.consumed
-                      ? 'bg-emerald-500 border-emerald-400 text-slate-950'
-                      : 'border-white/20 hover:border-blue-400'
-                  }`}
-                >
-                  {portion.consumed && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-                </button>
-
-                <div className="min-w-0">
-                  <p
-                    className={`text-xs font-bold text-slate-200 truncate ${
-                      portion.consumed ? 'line-through text-slate-500' : ''
+            return (
+              <div
+                key={`${portion.foodId}-${idx}`}
+                className={`p-2.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                  portion.consumed
+                    ? 'bg-[#050811]/70 border-white/[0.03] opacity-60'
+                    : 'bg-[#060A14] border-white/[0.06] hover:border-white/[0.12]'
+                }`}
+              >
+                {/* Checkbox & Name */}
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <button
+                    onClick={() => togglePortionConsumed(idx)}
+                    className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all shrink-0 btn-tactile ${
+                      portion.consumed
+                        ? 'bg-emerald-500 border-emerald-400 text-slate-950 glow-emerald'
+                        : 'border-white/20 hover:border-blue-400 bg-slate-950/50'
                     }`}
                   >
-                    {food.name}
-                  </p>
-                  <p className="text-[11px] text-slate-400 font-mono">
-                    {nutrients.calories} kcal &bull; P: {nutrients.protein}g | C: {nutrients.carbs}g | G: {nutrients.fat}g
-                  </p>
+                    {portion.consumed && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                  </button>
+
+                  <div className="min-w-0">
+                    <p
+                      className={`text-xs font-bold text-slate-200 truncate ${
+                        portion.consumed ? 'line-through text-slate-500' : ''
+                      }`}
+                    >
+                      {food.name}
+                    </p>
+                    <p className="text-[10px] text-slate-400 font-mono">
+                      {nutrients.calories} kcal &bull; P: {nutrients.protein}g | C: {nutrients.carbs}g | G: {nutrients.fat}g
+                    </p>
+                  </div>
+                </div>
+
+                {/* Grams & Actions */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {isEditing ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        value={tempGrams}
+                        onChange={(e) => setTempGrams(e.target.value === '' ? '' : e.target.value)}
+                        className="w-16 px-1.5 py-0.5 bg-slate-950 border border-blue-500 rounded-lg text-xs text-white font-bold text-center font-mono"
+                        autoFocus
+                      />
+                      <span className="text-[10px] text-slate-400 font-mono">g</span>
+                      <button
+                        onClick={() => handleSaveGrams(idx)}
+                        className="p-1 rounded-lg bg-blue-600 text-white hover:bg-blue-500 btn-tactile"
+                      >
+                        <Check className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setEditingGramsIndex(idx);
+                        setTempGrams(portion.grams);
+                      }}
+                      className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#0E1629] hover:bg-slate-800 text-xs font-bold text-slate-300 font-mono border border-white/5 transition-all btn-tactile"
+                    >
+                      <span>{portion.grams}g</span>
+                      <Edit2 className="w-2.5 h-2.5 text-slate-500" />
+                    </button>
+                  )}
+
+                  {/* Macro Swap Button */}
+                  <button
+                    onClick={() =>
+                      setSwapState({
+                        originalFoodId: portion.foodId,
+                        originalGrams: portion.grams
+                      })
+                    }
+                    className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition-all btn-tactile"
+                    title="Troca Inteligente (Macro-Swap)"
+                  >
+                    <Repeat className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* Remove Portion */}
+                  <button
+                    onClick={() => handleRemovePortion(idx)}
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all btn-tactile"
+                    title="Remover"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
-
-              {/* Grams & Actions */}
-              <div className="flex items-center gap-2 shrink-0">
-                {isEditing ? (
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      value={tempGrams}
-                      onChange={(e) => setTempGrams(e.target.value === '' ? '' : e.target.value)}
-                      className="w-16 px-1.5 py-0.5 bg-slate-950 border border-blue-500 rounded text-xs text-white font-bold text-center"
-                      autoFocus
-                    />
-                    <span className="text-[10px] text-slate-400">g</span>
-                    <button
-                      onClick={() => handleSaveGrams(idx)}
-                      className="p-1 rounded bg-blue-600 text-white hover:bg-blue-500"
-                    >
-                      <Check className="w-3 h-3" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => {
-                      setEditingGramsIndex(idx);
-                      setTempGrams(portion.grams);
-                    }}
-                    className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 font-mono border border-white/5 transition-all"
-                  >
-                    <span>{portion.grams}g</span>
-                    <Edit2 className="w-2.5 h-2.5 text-slate-500" />
-                  </button>
-                )}
-
-                {/* Macro Swap Button */}
-                <button
-                  onClick={() =>
-                    setSwapState({ originalFoodId: portion.foodId, originalGrams: portion.grams })
-                  }
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
-                  title="Trocar por equivalente (Macro-Swap)"
-                >
-                  <Repeat className="w-3.5 h-3.5" />
-                </button>
-
-                {/* Remove Portion */}
-                <button
-                  onClick={() => handleRemovePortion(idx)}
-                  className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                  title="Remover alimento"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
 
-      {/* Macro Swap Modal */}
+      {/* Modais */}
       {swapState && (
         <MacroSwapModal
           isOpen={true}
@@ -213,7 +232,6 @@ export const MealCard: React.FC<MealCardProps> = ({
         />
       )}
 
-      {/* Add Food Modal */}
       <FoodPickerModal
         isOpen={isAddFoodOpen}
         onClose={() => setIsAddFoodOpen(false)}

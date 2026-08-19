@@ -126,6 +126,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
   }
 
   const remainingCalories = Math.max(0, stats.targetCalories - totalCaloriesConsumed);
+  const caloriePercentage = Math.min(100, Math.round((totalCaloriesConsumed / stats.targetCalories) * 100));
 
   const coffeeServingMl = profile.coffeeConfig?.servingMl || 150;
   const coffeeCaffeineMg = profile.coffeeConfig?.caffeineMg || 100;
@@ -133,16 +134,23 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
   const preCaffeineMg = profile.preWorkoutFormula?.caffeineMg || 400;
 
   return (
-    <div className="space-y-5 pb-24 max-w-lg mx-auto p-4">
-      {/* Daily Target Summary Card */}
-      <div className="p-5 rounded-3xl bg-gradient-to-b from-[#0D1527] to-[#0A1120] border border-white/10 shadow-2xl space-y-4">
-        <div className="flex items-center justify-between">
+    <div className="space-y-4 pb-24 max-w-lg mx-auto p-4 animate-in fade-in duration-300">
+      {/* Telemetry Card (Whoop + Linear Analytics) */}
+      <div className="p-5 rounded-3xl bg-[#090F1E] border border-white/[0.09] shadow-2xl relative overflow-hidden space-y-4">
+        {/* Subtle Background Radial Glow */}
+        <div className="absolute top-0 right-0 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="flex items-start justify-between relative z-10">
           <div>
-            <span className="text-[10px] font-extrabold text-blue-400 uppercase tracking-widest">
-              Meta Diária Determinística
-            </span>
-            <div className="flex items-baseline gap-2 mt-0.5">
-              <h2 className="text-3xl font-black text-white font-mono tracking-tight">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest font-mono">
+                Balanço Energético Hoje
+              </span>
+            </div>
+
+            <div className="flex items-baseline gap-2 mt-1">
+              <h2 className="text-4xl font-extrabold text-white font-display tracking-tight">
                 {totalCaloriesConsumed}
               </h2>
               <span className="text-sm font-semibold text-slate-400 font-mono">
@@ -152,55 +160,83 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
           </div>
 
           <div className="text-right">
-            <span className="text-[10px] font-bold text-slate-400 uppercase">Restam</span>
-            <p className="text-lg font-black text-emerald-400 font-mono">
-              {remainingCalories} kcal
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest font-mono block">
+              Restante
+            </span>
+            <p className="text-xl font-extrabold text-emerald-400 font-mono mt-0.5">
+              {remainingCalories} <span className="text-xs text-emerald-500/70 font-normal">kcal</span>
             </p>
           </div>
         </div>
 
-        {/* Macros Grid */}
-        <div className="grid grid-cols-3 gap-2.5 pt-2 border-t border-white/5">
-          <div className="p-3 rounded-2xl bg-slate-900/80 border border-white/5 space-y-1.5">
-            <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider block">
-              Proteína
-            </span>
-            <p className="text-sm font-black text-white font-mono">
-              {Math.round(totalProteinConsumed)} <span className="text-slate-500 text-xs font-normal">/ {stats.proteinGrams}g</span>
+        {/* Global Thin Precision Progress Line */}
+        <div className="h-1.5 w-full bg-[#050811] rounded-full overflow-hidden border border-white/[0.05]">
+          <div
+            className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 rounded-full transition-all duration-500"
+            style={{ width: `${caloriePercentage}%` }}
+          />
+        </div>
+
+        {/* Tremor-Style Minimalist Macro Cards */}
+        <div className="grid grid-cols-3 gap-2.5 pt-1">
+          {/* Protein */}
+          <div className="p-3 rounded-2xl bg-[#060A14] border border-white/[0.06] space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider font-mono">
+                Proteína
+              </span>
+              <span className="text-[10px] font-mono text-slate-400 font-bold">
+                {Math.round((totalProteinConsumed / stats.proteinGrams) * 100)}%
+              </span>
+            </div>
+            <p className="text-sm font-extrabold text-white font-mono">
+              {Math.round(totalProteinConsumed)}<span className="text-slate-500 text-xs font-normal">/{stats.proteinGrams}g</span>
             </p>
-            <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+            <div className="h-1 w-full bg-slate-900 rounded-full overflow-hidden">
               <div
-                className="h-full bg-blue-500 rounded-full"
+                className="h-full bg-blue-500 rounded-full transition-all duration-300"
                 style={{ width: `${Math.min(100, (totalProteinConsumed / stats.proteinGrams) * 100)}%` }}
               />
             </div>
           </div>
 
-          <div className="p-3 rounded-2xl bg-slate-900/80 border border-white/5 space-y-1.5">
-            <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
-              Carboidratos
-            </span>
-            <p className="text-sm font-black text-white font-mono">
-              {Math.round(totalCarbsConsumed)} <span className="text-slate-500 text-xs font-normal">/ {stats.carbGrams}g</span>
+          {/* Carbs */}
+          <div className="p-3 rounded-2xl bg-[#060A14] border border-white/[0.06] space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider font-mono">
+                Carbos
+              </span>
+              <span className="text-[10px] font-mono text-slate-400 font-bold">
+                {Math.round((totalCarbsConsumed / stats.carbGrams) * 100)}%
+              </span>
+            </div>
+            <p className="text-sm font-extrabold text-white font-mono">
+              {Math.round(totalCarbsConsumed)}<span className="text-slate-500 text-xs font-normal">/{stats.carbGrams}g</span>
             </p>
-            <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+            <div className="h-1 w-full bg-slate-900 rounded-full overflow-hidden">
               <div
-                className="h-full bg-amber-500 rounded-full"
+                className="h-full bg-amber-500 rounded-full transition-all duration-300"
                 style={{ width: `${Math.min(100, (totalCarbsConsumed / stats.carbGrams) * 100)}%` }}
               />
             </div>
           </div>
 
-          <div className="p-3 rounded-2xl bg-slate-900/80 border border-white/5 space-y-1.5">
-            <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">
-              Gorduras
-            </span>
-            <p className="text-sm font-black text-white font-mono">
-              {Math.round(totalFatConsumed)} <span className="text-slate-500 text-xs font-normal">/ {stats.fatGrams}g</span>
+          {/* Fats */}
+          <div className="p-3 rounded-2xl bg-[#060A14] border border-white/[0.06] space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider font-mono">
+                Gorduras
+              </span>
+              <span className="text-[10px] font-mono text-slate-400 font-bold">
+                {Math.round((totalFatConsumed / stats.fatGrams) * 100)}%
+              </span>
+            </div>
+            <p className="text-sm font-extrabold text-white font-mono">
+              {Math.round(totalFatConsumed)}<span className="text-slate-500 text-xs font-normal">/{stats.fatGrams}g</span>
             </p>
-            <div className="h-1.5 w-full bg-slate-950 rounded-full overflow-hidden">
+            <div className="h-1 w-full bg-slate-900 rounded-full overflow-hidden">
               <div
-                className="h-full bg-emerald-500 rounded-full"
+                className="h-full bg-emerald-500 rounded-full transition-all duration-300"
                 style={{ width: `${Math.min(100, (totalFatConsumed / stats.fatGrams) * 100)}%` }}
               />
             </div>
@@ -208,7 +244,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
         </div>
 
         {/* Water Bar */}
-        <div className="pt-2 flex items-center justify-between gap-3 text-xs border-t border-white/5">
+        <div className="pt-2 flex items-center justify-between gap-3 text-xs border-t border-white/[0.06]">
           <div className="flex items-center gap-2">
             <Droplets className="w-4 h-4 text-cyan-400" />
             <span className="text-slate-300 font-medium">Água:</span>
@@ -220,13 +256,13 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
           <div className="flex gap-1.5">
             <button
               onClick={() => setWaterDrunkMl((w) => w + 250)}
-              className="px-2 py-0.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-[11px] font-bold active:scale-95 transition-all"
+              className="px-2.5 py-1 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-[11px] font-bold btn-tactile"
             >
               +250ml
             </button>
             <button
               onClick={() => setWaterDrunkMl((w) => w + 500)}
-              className="px-2 py-0.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-[11px] font-bold active:scale-95 transition-all"
+              className="px-2.5 py-1 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-[11px] font-bold btn-tactile"
             >
               +500ml
             </button>
@@ -234,22 +270,22 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
         </div>
       </div>
 
-      {/* Thermogenic & Stimulant Burn Tracker Card */}
-      <div className="p-4 rounded-3xl bg-gradient-to-r from-amber-950/30 via-slate-900 to-blue-950/30 border border-amber-500/20 shadow-xl space-y-3">
+      {/* Thermogenic & Stimulant Burn Tracker Card (Linear Style) */}
+      <div className="p-4 rounded-3xl bg-[#090F1E] border border-white/[0.08] shadow-xl space-y-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-amber-400 font-bold text-xs">
+          <div className="flex items-center gap-2 text-amber-400 font-extrabold text-xs font-mono">
             <Flame className="w-4 h-4 fill-amber-400" />
             <span className="uppercase tracking-wider">Termogênese por Estimulantes</span>
           </div>
           
           <div className="flex items-center gap-2">
             <span className="text-xs font-mono font-black text-amber-300">
-              +{thermogenicLog.totalThermogenicCaloriesBurned} kcal queimadas
+              +{thermogenicLog.totalThermogenicCaloriesBurned} kcal
             </span>
             <button
               type="button"
               onClick={() => setIsThermoConfigOpen(true)}
-              className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+              className="p-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-slate-400 hover:text-white transition-colors btn-tactile"
               title="Calibrar dosagens de café e pré-treino"
             >
               <Settings2 className="w-3.5 h-3.5" />
@@ -259,7 +295,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
 
         <div className="grid grid-cols-2 gap-2.5">
           {/* Coffee Tracker */}
-          <div className="p-3 rounded-2xl bg-slate-900/80 border border-white/5 space-y-2">
+          <div className="p-3 rounded-2xl bg-[#060A14] border border-white/[0.06] space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
                 <Coffee className="w-4 h-4 text-amber-400" />
@@ -269,20 +305,20 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
                 {thermogenicLog.blackCoffeeCups}x
               </span>
             </div>
-            <p className="text-[10px] text-slate-400 leading-tight">
-              {coffeeServingMl}ml (~{coffeeCaffeineMg}mg cafeína)
+            <p className="text-[10px] text-slate-400 leading-tight font-mono">
+              {coffeeServingMl}ml (~{coffeeCaffeineMg}mg caf)
             </p>
-            <div className="flex items-center gap-1 pt-1">
+            <div className="flex items-center gap-1.5 pt-1">
               <button
                 onClick={() => handleCoffeeChange(-1)}
                 disabled={thermogenicLog.blackCoffeeCups <= 0}
-                className="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-xs font-bold text-slate-300 active:scale-95"
+                className="flex-1 py-1 rounded-xl bg-[#0D1527] hover:bg-slate-800 disabled:opacity-30 text-xs font-bold text-slate-300 btn-tactile border border-white/5"
               >
                 -1
               </button>
               <button
                 onClick={() => handleCoffeeChange(1)}
-                className="flex-1 py-1 rounded-lg bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 text-xs font-bold text-amber-400 active:scale-95"
+                className="flex-1 py-1 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/40 text-xs font-bold text-amber-400 btn-tactile"
               >
                 +1 ☕
               </button>
@@ -290,7 +326,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
           </div>
 
           {/* Pre-Workout Tracker */}
-          <div className="p-3 rounded-2xl bg-slate-900/80 border border-white/5 space-y-2">
+          <div className="p-3 rounded-2xl bg-[#060A14] border border-white/[0.06] space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
                 <Zap className="w-4 h-4 text-blue-400 fill-blue-400" />
@@ -300,20 +336,20 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
                 {thermogenicLog.preWorkoutDoses} dose
               </span>
             </div>
-            <p className="text-[10px] text-slate-400 leading-tight truncate">
-              {preDoseGrams}g ({preCaffeineMg}mg caf + ativos)
+            <p className="text-[10px] text-slate-400 leading-tight truncate font-mono">
+              {preDoseGrams}g ({preCaffeineMg}mg caf)
             </p>
-            <div className="flex items-center gap-1 pt-1">
+            <div className="flex items-center gap-1.5 pt-1">
               <button
                 onClick={() => handlePreWorkoutChange(-1)}
                 disabled={thermogenicLog.preWorkoutDoses <= 0}
-                className="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-xs font-bold text-slate-300 active:scale-95"
+                className="flex-1 py-1 rounded-xl bg-[#0D1527] hover:bg-slate-800 disabled:opacity-30 text-xs font-bold text-slate-300 btn-tactile border border-white/5"
               >
                 -1
               </button>
               <button
                 onClick={() => handlePreWorkoutChange(1)}
-                className="flex-1 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-xs font-bold text-blue-400 active:scale-95"
+                className="flex-1 py-1 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/40 text-xs font-bold text-blue-400 btn-tactile"
               >
                 +1 ⚡
               </button>
@@ -326,7 +362,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
       <div className="flex items-center justify-between gap-2">
         <button
           onClick={() => setIsShoppingOpen(true)}
-          className="flex-1 py-2.5 px-3 rounded-xl bg-slate-900 border border-white/10 hover:border-emerald-500/40 text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center justify-center gap-2 active:scale-95"
+          className="flex-1 py-2.5 px-3 rounded-2xl bg-[#090F1E] border border-white/[0.08] hover:border-emerald-500/40 text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center justify-center gap-2 btn-tactile shadow-sm"
         >
           <ShoppingBag className="w-4 h-4 text-emerald-400" />
           <span>Lista de Compras</span>
@@ -334,7 +370,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
 
         <button
           onClick={handleAddMeal}
-          className="py-2.5 px-4 rounded-xl bg-blue-600/20 border border-blue-500/40 text-blue-400 hover:bg-blue-600/30 text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95"
+          className="py-2.5 px-4 rounded-2xl bg-blue-600/20 border border-blue-500/40 text-blue-400 hover:bg-blue-600/30 text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile shadow-sm"
         >
           <Plus className="w-4 h-4" />
           <span>Nova Refeição</span>
@@ -342,7 +378,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
 
         <button
           onClick={handleResetDay}
-          className="p-2.5 rounded-xl bg-slate-900 border border-white/10 text-slate-400 hover:text-white transition-all active:scale-95"
+          className="p-2.5 rounded-2xl bg-[#090F1E] border border-white/[0.08] text-slate-400 hover:text-white transition-all btn-tactile"
           title="Resetar Checks do Dia"
         >
           <RotateCcw className="w-4 h-4" />
@@ -350,7 +386,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
       </div>
 
       {/* Meals List */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         {mealPlans.map((meal) => (
           <MealCard
             key={meal.id || meal.order}
