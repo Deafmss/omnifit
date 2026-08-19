@@ -7,7 +7,8 @@ import {
   Flame,
   Zap,
   Coffee,
-  Settings2
+  Settings2,
+  TrendingDown
 } from 'lucide-react';
 import { MealPlan, UserProfile, MetabolicStats, DailyThermogenicLog } from '../../core/storage/types';
 import { db, getTodayThermogenicLog, updateTodayThermogenics, getActiveProfile } from '../../core/storage/db';
@@ -28,6 +29,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
   const [isShoppingOpen, setIsShoppingOpen] = useState(false);
   const [isThermoConfigOpen, setIsThermoConfigOpen] = useState(false);
   const [waterDrunkMl, setWaterDrunkMl] = useState<number>(1500);
+  const [eatBonusCalories, setEatBonusCalories] = useState<boolean>(false); // Se true, soma ao orçamento; se false, soma ao déficit de gordura
   const [thermogenicLog, setThermogenicLog] = useState<DailyThermogenicLog>({
     date: new Date().toISOString().split('T')[0],
     blackCoffeeCups: 0,
@@ -125,8 +127,22 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
     }
   }
 
-  const remainingCalories = Math.max(0, stats.targetCalories - totalCaloriesConsumed);
-  const caloriePercentage = Math.min(100, Math.round((totalCaloriesConsumed / stats.targetCalories) * 100));
+  // Integração determinística de queima termogênica
+  const extraBurnKcal = thermogenicLog.totalThermogenicCaloriesBurned;
+  
+  // Orçamento calórico com ou sem inclusão do bônus
+  const effectiveCalorieTarget = eatBonusCalories 
+    ? stats.targetCalories + extraBurnKcal 
+    : stats.targetCalories;
+
+  const remainingCalories = Math.max(0, effectiveCalorieTarget - totalCaloriesConsumed);
+  const caloriePercentage = Math.min(100, Math.round((totalCaloriesConsumed / effectiveCalorieTarget) * 100));
+
+  // Cálculo do Déficit Fisiológico Real do Dia
+  const baseTdee = stats.tdee;
+  const actualTdeeToday = baseTdee + extraBurnKcal;
+  const netDeficitToday = actualTdeeToday - totalCaloriesConsumed;
+  const plannedFullDeficit = (baseTdee - stats.targetCalories) + extraBurnKcal;
 
   const coffeeServingMl = profile.coffeeConfig?.servingMl || 150;
   const coffeeCaffeineMg = profile.coffeeConfig?.caffeineMg || 100;
@@ -135,7 +151,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
 
   return (
     <div className="space-y-4 pb-24 max-w-lg mx-auto p-4 animate-in fade-in duration-300">
-      {/* Telemetry Card (Whoop + Linear Analytics) */}
+      {/* Telemetry Card (Whoop + Linear Analytics com Déficit Integrado) */}
       <div className="p-5 rounded-3xl bg-[#090F1E] border border-white/[0.09] shadow-2xl relative overflow-hidden space-y-4">
         {/* Subtle Background Radial Glow */}
         <div className="absolute top-0 right-0 w-48 h-48 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -154,8 +170,13 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
                 {totalCaloriesConsumed}
               </h2>
               <span className="text-sm font-semibold text-slate-400 font-mono">
-                / {stats.targetCalories} kcal
+                / {effectiveCalorieTarget} kcal
               </span>
+              {extraBurnKcal > 0 && eatBonusCalories && (
+                <span className="text-[10px] text-amber-400 font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+                  +{extraBurnKcal} bônus
+                </span>
+              )}
             </div>
           </div>
 
@@ -175,6 +196,36 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
             className="h-full bg-gradient-to-r from-blue-500 to-emerald-400 rounded-full transition-all duration-500"
             style={{ width: `${caloriePercentage}%` }}
           />
+        </div>
+
+        {/* Déficit Real Integrado Banner (Estimulantes + TDEE - Ingestão) */}
+        <div className="p-3 rounded-2xl bg-[#060A14] border border-white/[0.06] flex items-center justify-between gap-3 text-xs font-mono">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+              <TrendingDown className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-slate-200">Déficit Real Projetado:</span>
+                {extraBurnKcal > 0 && (
+                  <span className="text-[10px] text-amber-400 font-bold px-1 py-0.2 rounded bg-amber-500/15">
+                    +{extraBurnKcal} kcal café/pré
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] text-slate-400 font-sans">
+                {totalCaloriesConsumed === 0 
+                  ? `Se bater a meta de comida, seu déficit final será de -${plannedFullDeficit} kcal`
+                  : `Déficit acumulado até agora: -${netDeficitToday} kcal`}
+              </p>
+            </div>
+          </div>
+
+          <div className="text-right shrink-0">
+            <span className="text-sm font-black text-amber-400 font-mono">
+              -{totalCaloriesConsumed === 0 ? plannedFullDeficit : netDeficitToday} kcal
+            </span>
+          </div>
         </div>
 
         {/* Tremor-Style Minimalist Macro Cards */}
@@ -270,7 +321,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
         </div>
       </div>
 
-      {/* Thermogenic & Stimulant Burn Tracker Card (Linear Style) */}
+      {/* Thermogenic & Stimulant Burn Tracker Card (Linear Style com Ação Direta no Déficit) */}
       <div className="p-4 rounded-3xl bg-[#090F1E] border border-white/[0.08] shadow-xl space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-amber-400 font-extrabold text-xs font-mono">
@@ -355,6 +406,19 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Destino das Calorias Termogênicas Toggle */}
+        <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-xs">
+          <span className="text-[11px] text-slate-400">Como aplicar as calorias queimadas?</span>
+          <button
+            type="button"
+            onClick={() => setEatBonusCalories(!eatBonusCalories)}
+            className="px-2.5 py-1 rounded-xl bg-[#060A14] border border-white/[0.08] text-[10px] font-mono font-bold text-slate-300 hover:text-white btn-tactile flex items-center gap-1.5"
+          >
+            <span className={`w-2 h-2 rounded-full ${eatBonusCalories ? 'bg-blue-400' : 'bg-emerald-400'}`} />
+            <span>{eatBonusCalories ? 'Somar ao Orçamento (+Comida)' : 'Acelerar Déficit de Gordura 🔥'}</span>
+          </button>
         </div>
       </div>
 
