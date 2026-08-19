@@ -4,11 +4,13 @@ import {
   ShieldCheck, 
   Plus, 
   Trash2, 
-  Pencil,
-  Check,
-  Layers,
-  Clock,
-  Dumbbell
+  Pencil, 
+  Check, 
+  Layers, 
+  Clock, 
+  Calendar, 
+  Sparkles, 
+  BedDouble 
 } from 'lucide-react';
 import { WorkoutRoutine, UserProfile, Exercise } from '../../core/storage/types';
 import { db, applySplitTemplate, addNewRoutine, deleteRoutine, SplitTemplateType } from '../../core/storage/db';
@@ -23,9 +25,21 @@ interface WorkoutSplitViewProps {
   profile: UserProfile;
 }
 
+const DAYS_OF_WEEK = [
+  { dayIndex: 1, short: 'SEG', full: 'Segunda-feira' },
+  { dayIndex: 2, short: 'TER', full: 'Terça-feira' },
+  { dayIndex: 3, short: 'QUA', full: 'Quarta-feira' },
+  { dayIndex: 4, short: 'QUI', full: 'Quinta-feira' },
+  { dayIndex: 5, short: 'SEX', full: 'Sexta-feira' },
+  { dayIndex: 6, short: 'SÁB', full: 'Sábado' },
+  { dayIndex: 0, short: 'DOM', full: 'Domingo' }
+];
+
 export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) => {
+  const todayDayIndex = new Date().getDay(); // 0 = Domingo, 1 = Segunda ... 6 = Sábado
+  const [selectedDay, setSelectedDay] = useState<number>(todayDayIndex);
+
   const [routines, setRoutines] = useState<WorkoutRoutine[]>([]);
-  const [selectedRoutineIndex, setSelectedRoutineIndex] = useState<number>(0);
   const [activeRoutineToStart, setActiveRoutineToStart] = useState<WorkoutRoutine | null>(null);
   const [isAuditorOpen, setIsAuditorOpen] = useState<boolean>(false);
   const [isAddExerciseOpen, setIsAddExerciseOpen] = useState<boolean>(false);
@@ -37,37 +51,40 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
 
   const loadRoutines = async () => {
     const list = await db.routines.toArray();
-    setRoutines(list);
-    if (selectedRoutineIndex >= list.length) {
-      setSelectedRoutineIndex(Math.max(0, list.length - 1));
+    for (let i = 0; i < list.length; i++) {
+      if (list[i].dayOfWeek === undefined) {
+        list[i].dayOfWeek = (i + 1) % 7;
+        if (list[i].id) {
+          await db.routines.update(list[i].id!, { dayOfWeek: (i + 1) % 7 });
+        }
+      }
     }
+    setRoutines(list);
   };
 
   useEffect(() => {
     loadRoutines();
   }, []);
 
-  const currentRoutine = routines[selectedRoutineIndex] || routines[0];
+  // Encontra a rotina correspondente ao dia selecionado
+  const currentRoutine = routines.find((r) => r.dayOfWeek === selectedDay);
+  const currentDayInfo = DAYS_OF_WEEK.find((d) => d.dayIndex === selectedDay) || DAYS_OF_WEEK[0];
 
   const handleApplyTemplate = async (templateId: SplitTemplateType) => {
     await applySplitTemplate(templateId);
     await loadRoutines();
-    setSelectedRoutineIndex(0);
   };
 
-  const handleAddNewSplit = async () => {
-    await addNewRoutine();
+  const handleCreateRoutineForSelectedDay = async () => {
+    await addNewRoutine(`Treino de ${currentDayInfo.full}`, undefined, selectedDay);
     await loadRoutines();
-    const updated = await db.routines.toArray();
-    setSelectedRoutineIndex(updated.length - 1);
   };
 
   const handleDeleteSplit = async (routineId?: number) => {
     if (!routineId) return;
-    if (confirm(`Tem certeza que deseja excluir esta ficha de treino?`)) {
+    if (confirm(`Tem certeza que deseja desvincular ou excluir o treino deste dia?`)) {
       await deleteRoutine(routineId);
       await loadRoutines();
-      setSelectedRoutineIndex(0);
     }
   };
 
@@ -103,7 +120,6 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
       }
     ];
 
-    // Atualiza músculos alvo com base nos exercícios adicionados
     const newTargetMuscles = Array.from(
       new Set([...currentRoutine.targetMuscles, exercise.primaryMuscle])
     );
@@ -147,86 +163,106 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
 
   return (
     <div className="space-y-4 pb-24 max-w-lg mx-auto p-4 animate-in fade-in duration-300">
-      {/* Splits Navigation & Controls Bar */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          {/* Action buttons */}
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setIsTemplateModalOpen(true)}
-              className="px-3 py-1.5 rounded-xl bg-blue-600/15 border border-blue-500/30 text-blue-400 hover:bg-blue-600/25 text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile shadow-sm"
-              title="Trocar Divisão de Treino (PPL, ABCDE, Upper/Lower, Full Body...)"
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>Trocar Divisão</span>
-            </button>
-
-            <button
-              onClick={handleAddNewSplit}
-              className="px-3 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/25 text-xs font-bold transition-all flex items-center gap-1 btn-tactile shadow-sm"
-              title="Adicionar Nova Ficha (Treino D, E, F...)"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Nova Ficha</span>
-            </button>
-          </div>
-
+      {/* Top Action Bar */}
+      <div className="flex items-center justify-between gap-2 px-0.5">
+        <div className="flex items-center gap-1.5">
           <button
-            onClick={() => setIsAuditorOpen(true)}
-            className="p-1.5 px-2.5 rounded-xl bg-[#090F1E] border border-white/[0.08] text-slate-300 hover:text-emerald-400 text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile"
-            title="Auditar Volume MAV/MRV"
+            onClick={() => setIsTemplateModalOpen(true)}
+            className="px-3 py-1.5 rounded-xl bg-blue-600/15 border border-blue-500/30 text-blue-400 hover:bg-blue-600/25 text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile shadow-sm"
+            title="Trocar Divisão de Treino (PPL, ABCDE, Upper/Lower, Full Body...)"
           >
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden sm:inline">Auditar Volume</span>
+            <Layers className="w-3.5 h-3.5" />
+            <span>Divisões de Treino</span>
           </button>
         </div>
 
-        {/* Horizontal Split Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
-          {routines.map((r, idx) => (
-            <button
-              key={r.id || idx}
-              onClick={() => {
-                setSelectedRoutineIndex(idx);
-                setIsEditingTitle(false);
-              }}
-              className={`py-2 px-4 rounded-2xl font-display font-extrabold text-xs tracking-wide transition-all whitespace-nowrap btn-tactile flex items-center gap-1.5 ${
-                selectedRoutineIndex === idx
-                  ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20 glow-emerald scale-[1.02]'
-                  : 'bg-[#090F1E] border border-white/[0.08] text-slate-400 hover:text-white'
-              }`}
-            >
-              <span>Treino {r.splitCode}</span>
-              <span className="text-[10px] opacity-75 font-mono">
-                ({r.exercises.length})
-              </span>
-            </button>
-          ))}
+        <button
+          onClick={() => setIsAuditorOpen(true)}
+          className="p-1.5 px-2.5 rounded-xl bg-[#090F1E] border border-white/[0.08] text-slate-300 hover:text-emerald-400 text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile"
+          title="Auditar Volume MAV/MRV"
+        >
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="hidden sm:inline">Auditar Volume</span>
+        </button>
+      </div>
+
+      {/* Weekly Schedule Days Bar (Segunda a Domingo) */}
+      <div className="p-1.5 rounded-3xl bg-[#090F1E] border border-white/[0.08] shadow-lg">
+        <div className="grid grid-cols-7 gap-1">
+          {DAYS_OF_WEEK.map((d) => {
+            const isToday = d.dayIndex === todayDayIndex;
+            const isSelected = d.dayIndex === selectedDay;
+            const hasRoutine = routines.some((r) => r.dayOfWeek === d.dayIndex);
+
+            return (
+              <button
+                key={d.dayIndex}
+                onClick={() => {
+                  setSelectedDay(d.dayIndex);
+                  setIsEditingTitle(false);
+                }}
+                className={`py-2 px-1 rounded-2xl flex flex-col items-center justify-center transition-all relative btn-tactile ${
+                  isSelected
+                    ? 'bg-gradient-to-b from-emerald-500 to-teal-600 text-slate-950 shadow-md font-black scale-[1.03]'
+                    : isToday
+                    ? 'bg-[#060A14] border border-emerald-500/50 text-emerald-400'
+                    : 'bg-[#060A14] border border-white/[0.04] text-slate-400 hover:text-white'
+                }`}
+              >
+                <span className="text-[10px] font-bold tracking-wider font-mono">
+                  {d.short}
+                </span>
+
+                {/* Indicator Dot */}
+                <div className="mt-1 flex items-center gap-0.5">
+                  {hasRoutine ? (
+                    <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-slate-950' : 'bg-emerald-400'}`} />
+                  ) : (
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-700" />
+                  )}
+                </div>
+
+                {/* Today Badge */}
+                {isToday && !isSelected && (
+                  <span className="absolute -top-1 px-1 rounded-full bg-emerald-500 text-slate-950 text-[7px] font-black uppercase">
+                    Hoje
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Routine Detail Card */}
-      {currentRoutine && (
-        <div className="space-y-3.5">
+      {/* Routine Detail Card or Rest Day Card */}
+      {currentRoutine ? (
+        <div className="space-y-3.5 animate-in fade-in duration-200">
           {/* Main Action Banner */}
           <div className="p-5 rounded-3xl bg-[#090F1E] border border-white/[0.09] shadow-xl space-y-4 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
             <div className="flex items-start justify-between relative z-10 gap-3">
               <div className="space-y-1 min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-0.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 rounded-full text-[10px] font-extrabold uppercase tracking-wider font-mono">
-                    Divisão {currentRoutine.splitCode}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2.5 py-0.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 rounded-full text-[10px] font-extrabold uppercase tracking-wider font-mono flex items-center gap-1">
+                    <Calendar className="w-3 h-3" />
+                    <span>{currentDayInfo.full}</span>
                   </span>
-                  {routines.length > 1 && currentRoutine.id && (
-                    <button
-                      onClick={() => handleDeleteSplit(currentRoutine.id)}
-                      className="p-1 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
-                      title="Excluir esta ficha de treino"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+
+                  {selectedDay === todayDayIndex && (
+                    <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[10px] font-extrabold font-mono flex items-center gap-1">
+                      <Sparkles className="w-2.5 h-2.5" />
+                      <span>Treino de Hoje</span>
+                    </span>
                   )}
+
+                  <button
+                    onClick={() => handleDeleteSplit(currentRoutine.id)}
+                    className="p-1 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all ml-auto"
+                    title="Remover treino deste dia (marcar como descanso)"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
 
                 {/* Editable Title */}
@@ -266,7 +302,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
                 )}
 
                 <p className="text-xs text-slate-400">
-                  {currentRoutine.exercises.length} exercícios &bull; Volume Total:{' '}
+                  {currentRoutine.exercises.length} exercícios &bull; Volume:{' '}
                   <span className="font-mono text-slate-200 font-bold">
                     {currentRoutine.exercises.reduce((a, b) => a + b.targetSets, 0)} séries
                   </span>
@@ -293,14 +329,16 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
               className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-blue-600 text-slate-950 font-display font-black text-sm uppercase tracking-wider shadow-xl shadow-emerald-500/20 hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Play className="w-4 h-4 fill-current" />
-              <span>Iniciar Treino na Academia ⚡</span>
+              <span>
+                {selectedDay === todayDayIndex ? 'Iniciar Treino de Hoje ⚡' : `Iniciar Treino de ${currentDayInfo.short} ⚡`}
+              </span>
             </button>
           </div>
 
           {/* Exercises Header */}
           <div className="flex items-center justify-between px-1">
             <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest font-mono">
-              Sequência de Exercícios
+              Exercícios de {currentDayInfo.full}
             </span>
 
             <button
@@ -319,9 +357,9 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
                 onClick={() => setIsAddExerciseOpen(true)}
                 className="p-8 rounded-3xl border border-dashed border-white/[0.09] text-center space-y-2 cursor-pointer hover:border-blue-500/40 hover:bg-blue-950/10 transition-all"
               >
-                <Dumbbell className="w-8 h-8 text-slate-500 mx-auto" />
-                <p className="text-xs font-bold text-slate-300">Esta ficha está em branco.</p>
-                <p className="text-[11px] text-slate-500">Toque aqui para adicionar os exercícios que você faz na sua academia!</p>
+                <Plus className="w-8 h-8 text-blue-400 mx-auto" />
+                <p className="text-xs font-bold text-slate-300">Nenhum exercício cadastrado para {currentDayInfo.full}.</p>
+                <p className="text-[11px] text-slate-500">Toque aqui para adicionar os exercícios que você faz neste dia!</p>
               </div>
             ) : (
               currentRoutine.exercises.map((item, idx) => {
@@ -392,6 +430,33 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
               })
             )}
           </div>
+        </div>
+      ) : (
+        /* Rest Day (Descanso & Recuperação) Card */
+        <div className="p-8 rounded-3xl bg-[#090F1E] border border-white/[0.08] shadow-xl text-center space-y-4 animate-in fade-in">
+          <div className="w-14 h-14 rounded-3xl bg-blue-600/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mx-auto shadow-inner">
+            <BedDouble className="w-7 h-7" />
+          </div>
+
+          <div className="space-y-1">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500 font-mono">
+              {currentDayInfo.full}
+            </span>
+            <h3 className="text-lg font-extrabold text-white font-display">
+              Dia de Descanso & Recuperação
+            </h3>
+            <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
+              O descanso é essencial para a síntese proteica e reconstrução das fibras musculares.
+            </p>
+          </div>
+
+          <button
+            onClick={handleCreateRoutineForSelectedDay}
+            className="py-3 px-5 rounded-2xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-400 font-extrabold text-xs transition-all inline-flex items-center gap-2 btn-tactile"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Adicionar Treino para {currentDayInfo.full}</span>
+          </button>
         </div>
       )}
 

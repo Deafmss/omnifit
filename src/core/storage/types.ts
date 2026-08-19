@@ -148,6 +148,7 @@ export interface WorkoutRoutine {
   id?: number;
   name: string;
   splitCode: string;
+  dayOfWeek?: number; // 0 = Domingo, 1 = Segunda, 2 = Terça, 3 = Quarta, 4 = Quinta, 5 = Sexta, 6 = Sábado
   targetMuscles: MuscleGroup[];
   exercises: {
     exerciseId: string;

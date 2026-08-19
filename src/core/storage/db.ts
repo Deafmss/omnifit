@@ -591,7 +591,17 @@ export async function applySplitTemplate(template: SplitTemplateType): Promise<v
 /**
  * Cria uma nova ficha de treino customizada.
  */
-export async function addNewRoutine(name?: string, splitCode?: string): Promise<number> {
+/**
+ * Associa uma ficha a um dia específico da semana (0=Dom, 1=Seg... 6=Sáb).
+ */
+export async function setRoutineDay(routineId: number, dayOfWeek: number): Promise<void> {
+  await db.routines.update(routineId, { dayOfWeek });
+}
+
+/**
+ * Cria uma nova ficha de treino customizada associada a um dia da semana.
+ */
+export async function addNewRoutine(name?: string, splitCode?: string, dayOfWeek?: number): Promise<number> {
   const count = await db.routines.count();
   const nextLetter = String.fromCharCode(65 + count); // A, B, C, D, E, F...
   const finalSplitCode = splitCode || nextLetter;
@@ -600,6 +610,7 @@ export async function addNewRoutine(name?: string, splitCode?: string): Promise<
   const id = await db.routines.add({
     name: finalName,
     splitCode: finalSplitCode,
+    dayOfWeek: dayOfWeek !== undefined ? dayOfWeek : (count % 7) + 1,
     targetMuscles: ['chest', 'back', 'quadriceps'],
     exercises: []
   });
