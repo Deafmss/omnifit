@@ -6,23 +6,27 @@ import {
   RotateCcw,
   Flame,
   Zap,
-  Coffee
+  Coffee,
+  Settings2
 } from 'lucide-react';
 import { MealPlan, UserProfile, MetabolicStats, DailyThermogenicLog } from '../../core/storage/types';
-import { db, getTodayThermogenicLog, updateTodayThermogenics } from '../../core/storage/db';
+import { db, getTodayThermogenicLog, updateTodayThermogenics, getActiveProfile } from '../../core/storage/db';
 import { FOOD_DATABASE_MAP } from '../../core/data/tacoDatabase';
 import { calculateFoodNutrients } from '../../core/math/macroSolver';
 import { MealCard } from './MealCard';
 import { ShoppingListModal } from './ShoppingListModal';
+import { ThermogenicsConfigModal } from './ThermogenicsConfigModal';
 
 interface DietOverviewProps {
   profile: UserProfile;
   stats: MetabolicStats;
 }
 
-export const DietOverview: React.FC<DietOverviewProps> = ({ stats }) => {
+export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProfile, stats }) => {
+  const [profile, setProfile] = useState<UserProfile>(initialProfile);
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
   const [isShoppingOpen, setIsShoppingOpen] = useState(false);
+  const [isThermoConfigOpen, setIsThermoConfigOpen] = useState(false);
   const [waterDrunkMl, setWaterDrunkMl] = useState<number>(1500);
   const [thermogenicLog, setThermogenicLog] = useState<DailyThermogenicLog>({
     date: new Date().toISOString().split('T')[0],
@@ -31,28 +35,31 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ stats }) => {
     totalThermogenicCaloriesBurned: 0
   });
 
-  const loadMeals = async () => {
+  const loadMealsAndProfile = async () => {
     const plans = await db.mealPlans.orderBy('order').toArray();
     setMealPlans(plans);
 
     const thermo = await getTodayThermogenicLog();
     setThermogenicLog(thermo);
+
+    const active = await getActiveProfile();
+    if (active) setProfile(active);
   };
 
   useEffect(() => {
-    loadMeals();
+    loadMealsAndProfile();
   }, [stats.bmr]);
 
   const handleUpdateMeal = async (updated: MealPlan) => {
     if (updated.id) {
       await db.mealPlans.put(updated);
-      loadMeals();
+      loadMealsAndProfile();
     }
   };
 
   const handleDeleteMeal = async (id: number) => {
     await db.mealPlans.delete(id);
-    loadMeals();
+    loadMealsAndProfile();
   };
 
   const handleAddMeal = async () => {
@@ -67,7 +74,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ stats }) => {
       portions: []
     };
     await db.mealPlans.add(newMeal);
-    loadMeals();
+    loadMealsAndProfile();
   };
 
   const handleResetDay = async () => {
@@ -84,7 +91,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ stats }) => {
       stats.bmr
     );
     setThermogenicLog(resetThermo);
-    loadMeals();
+    loadMealsAndProfile();
   };
 
   const handleCoffeeChange = async (delta: number) => {
@@ -119,6 +126,11 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ stats }) => {
   }
 
   const remainingCalories = Math.max(0, stats.targetCalories - totalCaloriesConsumed);
+
+  const coffeeServingMl = profile.coffeeConfig?.servingMl || 150;
+  const coffeeCaffeineMg = profile.coffeeConfig?.caffeineMg || 100;
+  const preDoseGrams = profile.preWorkoutFormula?.doseGrams || 10;
+  const preCaffeineMg = profile.preWorkoutFormula?.caffeineMg || 400;
 
   return (
     <div className="space-y-5 pb-24 max-w-lg mx-auto p-4">
@@ -227,11 +239,22 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ stats }) => {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-amber-400 font-bold text-xs">
             <Flame className="w-4 h-4 fill-amber-400" />
-            <span className="uppercase tracking-wider">Termogênese Induzida por Estimulantes</span>
+            <span className="uppercase tracking-wider">Termogênese por Estimulantes</span>
           </div>
-          <span className="text-xs font-mono font-black text-amber-300">
-            +{thermogenicLog.totalThermogenicCaloriesBurned} kcal queimadas
-          </span>
+          
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono font-black text-amber-300">
+              +{thermogenicLog.totalThermogenicCaloriesBurned} kcal queimadas
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsThermoConfigOpen(true)}
+              className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+              title="Calibrar dosagens de café e pré-treino"
+            >
+              <Settings2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2.5">
@@ -247,7 +270,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ stats }) => {
               </span>
             </div>
             <p className="text-[10px] text-slate-400 leading-tight">
-              150ml sem açúcar (~100mg cafeína)
+              {coffeeServingMl}ml (~{coffeeCaffeineMg}mg cafeína)
             </p>
             <div className="flex items-center gap-1 pt-1">
               <button
@@ -277,8 +300,8 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ stats }) => {
                 {thermogenicLog.preWorkoutDoses} dose
               </span>
             </div>
-            <p className="text-[10px] text-slate-400 leading-tight">
-              10g (400mg caf + 2g taurina + beta)
+            <p className="text-[10px] text-slate-400 leading-tight truncate">
+              {preDoseGrams}g ({preCaffeineMg}mg caf + ativos)
             </p>
             <div className="flex items-center gap-1 pt-1">
               <button
@@ -338,11 +361,18 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ stats }) => {
         ))}
       </div>
 
-      {/* Shopping List Modal */}
+      {/* Modais */}
       <ShoppingListModal
         isOpen={isShoppingOpen}
         onClose={() => setIsShoppingOpen(false)}
         mealPlans={mealPlans}
+      />
+
+      <ThermogenicsConfigModal
+        isOpen={isThermoConfigOpen}
+        onClose={() => setIsThermoConfigOpen(false)}
+        profile={profile}
+        onSaved={loadMealsAndProfile}
       />
     </div>
   );

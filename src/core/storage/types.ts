@@ -30,6 +30,12 @@ export interface PreWorkoutFormula {
   zeroSugar: boolean;
 }
 
+export interface CoffeeConfig {
+  name: string;
+  servingMl: number;
+  caffeineMg: number;
+}
+
 export interface UserProfile {
   id?: number;
   name: string;
@@ -48,6 +54,7 @@ export interface UserProfile {
   preferredFoodIds: string[];
   isCalibrated: boolean;
   preWorkoutFormula?: PreWorkoutFormula;
+  coffeeConfig?: CoffeeConfig;
   createdAt: string;
   updatedAt: string;
 }

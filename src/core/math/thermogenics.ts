@@ -1,10 +1,27 @@
-import { PreWorkoutFormula } from '../storage/types';
+import { PreWorkoutFormula, CoffeeConfig } from '../storage/types';
+
+/**
+ * Predefinições de doses comuns de café puro sem açúcar.
+ */
+export const DEFAULT_COFFEE_CONFIG: CoffeeConfig = {
+  name: 'Xícara de Café Coado',
+  servingMl: 150,
+  caffeineMg: 100
+};
+
+export const COFFEE_PRESETS: CoffeeConfig[] = [
+  { name: 'Dose Expresso Curto', servingMl: 50, caffeineMg: 65 },
+  { name: 'Xícara de Café Coado', servingMl: 150, caffeineMg: 100 },
+  { name: 'Caneca Média de Café', servingMl: 200, caffeineMg: 130 },
+  { name: 'Caneca Grande de Café', servingMl: 250, caffeineMg: 165 },
+  { name: 'Cápsula Intensa', servingMl: 110, caffeineMg: 90 }
+];
 
 /**
  * Fórmula padrão do usuário com dose de 10g (zero açúcar).
  */
 export const USER_PRE_WORKOUT_FORMULA: PreWorkoutFormula = {
-  name: 'Pré-Treino de Alta Performance (Dose 10g)',
+  name: 'Pré-Treino Alta Performance (400mg)',
   doseGrams: 10,
   caffeineMg: 400,
   taurineMg: 2000,
@@ -18,6 +35,52 @@ export const USER_PRE_WORKOUT_FORMULA: PreWorkoutFormula = {
   zeroSugar: true
 };
 
+export const PRE_WORKOUT_PRESETS: PreWorkoutFormula[] = [
+  USER_PRE_WORKOUT_FORMULA,
+  {
+    name: 'Pré-Treino Leve / Diário (150mg)',
+    doseGrams: 5,
+    caffeineMg: 150,
+    taurineMg: 1000,
+    betaAlanineMg: 1000,
+    arginineMg: 500,
+    sodiumMg: 20,
+    vitaminB5Mg: 2.5,
+    vitaminB6Mg: 1.5,
+    vitaminEMg: 10,
+    chromiumMcg: 15,
+    zeroSugar: true
+  },
+  {
+    name: 'Pré-Treino Médio Padrão (250mg)',
+    doseGrams: 7,
+    caffeineMg: 250,
+    taurineMg: 1200,
+    betaAlanineMg: 1500,
+    arginineMg: 800,
+    sodiumMg: 30,
+    vitaminB5Mg: 4.0,
+    vitaminB6Mg: 2.5,
+    vitaminEMg: 20,
+    chromiumMcg: 25,
+    zeroSugar: true
+  },
+  {
+    name: 'Pré-Treino Forte (300mg)',
+    doseGrams: 8,
+    caffeineMg: 300,
+    taurineMg: 1500,
+    betaAlanineMg: 2000,
+    arginineMg: 1000,
+    sodiumMg: 35,
+    vitaminB5Mg: 5.0,
+    vitaminB6Mg: 3.0,
+    vitaminEMg: 25,
+    chromiumMcg: 30,
+    zeroSugar: true
+  }
+];
+
 export interface ThermogenicBurnBreakdown {
   caffeineBurnKcal: number;
   taurineSynergyBurnKcal: number;
@@ -28,7 +91,6 @@ export interface ThermogenicBurnBreakdown {
 
 /**
  * Calcula a queima termogênica induzida por doses de cafeína (Dulloo et al., Astrup et al.).
- * 100mg de cafeína (1 xícara de 150ml de café preto sem açúcar) gera em média ~18 kcal de gasto termogênico passivo.
  * 
  * @param caffeineMg Miligramas totais de cafeína consumidos
  * @param bmr Taxa Metabólica Basal do indivíduo (kcal/dia)
@@ -59,7 +121,6 @@ export function calculateCaffeineThermogenesis(
 
 /**
  * Calcula a queima calórica e o impacto termogênico total da fórmula de pré-treino.
- * Combina o efeito mitocondrial da cafeína com o aumento de oxidação lipídica da taurina.
  */
 export function calculatePreWorkoutThermogenesis(
   formula: PreWorkoutFormula,
@@ -79,9 +140,10 @@ export function calculatePreWorkoutThermogenesis(
   const totalCaffeine = formula.caffeineMg * dosesCount;
   const caffeineResult = calculateCaffeineThermogenesis(totalCaffeine, bmr);
 
-  // A taurina (2g por dose) promove aumento de ~10 a 15% na oxidação de ácidos graxos
-  // gerando ~15 kcal adicionais via desacoplamento lipídico por dose
-  const taurineSynergyBurnKcal = Math.round(dosesCount * (formula.taurineMg >= 1500 ? 15 : 8));
+  // A taurina (>=1.5g por dose) promove aumento de ~10 a 15% na oxidação de ácidos graxos
+  const taurineSynergyBurnKcal = Math.round(
+    dosesCount * (formula.taurineMg >= 1500 ? 15 : formula.taurineMg > 0 ? 8 : 0)
+  );
 
   const totalThermogenicKcal = caffeineResult.burnKcal + taurineSynergyBurnKcal;
 

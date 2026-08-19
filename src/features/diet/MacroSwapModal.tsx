@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowRight, Check, Repeat, Search } from 'lucide-react';
 import { FoodItem } from '../../core/storage/types';
-import { TACO_FOOD_DATABASE, FOOD_DATABASE_MAP } from '../../core/data/tacoDatabase';
+import { FOOD_DATABASE_MAP } from '../../core/data/tacoDatabase';
 import { calculateMacroSwap, calculateFoodNutrients } from '../../core/math/macroSolver';
 import { Modal } from '../../components/ui/Modal';
+import { getAllFoods } from '../../core/storage/db';
 
 interface MacroSwapModalProps {
   isOpen: boolean;
@@ -20,16 +21,23 @@ export const MacroSwapModal: React.FC<MacroSwapModalProps> = ({
   originalGrams,
   onApplySwap
 }) => {
-  const originalFood = FOOD_DATABASE_MAP.get(originalFoodId);
+  const [allFoods, setAllFoods] = useState<FoodItem[]>([]);
+  const originalFood = FOOD_DATABASE_MAP.get(originalFoodId) || allFoods.find((f) => f.id === originalFoodId);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedReplacement, setSelectedReplacement] = useState<FoodItem | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      getAllFoods().then(setAllFoods);
+    }
+  }, [isOpen]);
 
   if (!originalFood) return null;
 
   const originalNutrients = calculateFoodNutrients(originalFood, originalGrams);
 
   // Filtra alimentos candidatos (priorizando mesma categoria e excluindo o próprio alimento)
-  const candidateFoods = TACO_FOOD_DATABASE.filter(
+  const candidateFoods = allFoods.filter(
     (f) =>
       f.id !== originalFoodId &&
       (searchQuery === '' || f.name.toLowerCase().includes(searchQuery.toLowerCase()))

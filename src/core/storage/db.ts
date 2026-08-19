@@ -10,7 +10,13 @@ import {
   DailyThermogenicLog
 } from './types';
 import { calculateWeightEMA } from '../math/adaptiveEngine';
-import { USER_PRE_WORKOUT_FORMULA, calculateCaffeineThermogenesis, calculatePreWorkoutThermogenesis } from '../math/thermogenics';
+import { 
+  USER_PRE_WORKOUT_FORMULA, 
+  DEFAULT_COFFEE_CONFIG, 
+  calculateCaffeineThermogenesis, 
+  calculatePreWorkoutThermogenesis 
+} from '../math/thermogenics';
+import { TACO_FOOD_DATABASE } from '../data/tacoDatabase';
 
 export class OmniFitDatabase extends Dexie {
   profiles!: EntityTable<UserProfile, 'id'>;
@@ -40,6 +46,14 @@ export class OmniFitDatabase extends Dexie {
 export const db = new OmniFitDatabase();
 
 /**
+ * Retorna todos os alimentos oficiais TACO + Alimentos Personalizados cadastrados.
+ */
+export async function getAllFoods(): Promise<FoodItem[]> {
+  const custom = await db.customFoods.toArray();
+  return [...TACO_FOOD_DATABASE, ...custom];
+}
+
+/**
  * Obtém o perfil ativo do usuário.
  */
 export async function getActiveProfile(): Promise<UserProfile | undefined> {
@@ -56,6 +70,7 @@ export async function saveProfile(profile: UserProfile): Promise<number> {
     await db.profiles.update(existing.id, {
       ...profile,
       preWorkoutFormula: profile.preWorkoutFormula || USER_PRE_WORKOUT_FORMULA,
+      coffeeConfig: profile.coffeeConfig || DEFAULT_COFFEE_CONFIG,
       updatedAt: new Date().toISOString()
     });
     return existing.id;
@@ -63,6 +78,7 @@ export async function saveProfile(profile: UserProfile): Promise<number> {
   return (await db.profiles.add({
     ...profile,
     preWorkoutFormula: profile.preWorkoutFormula || USER_PRE_WORKOUT_FORMULA,
+    coffeeConfig: profile.coffeeConfig || DEFAULT_COFFEE_CONFIG,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   })) as number;
@@ -82,12 +98,14 @@ export async function updateTodayThermogenics(
   const currentCoffee = Math.max(0, (existing?.blackCoffeeCups || 0) + coffeeDelta);
   const currentPreWorkout = Math.max(0, (existing?.preWorkoutDoses || 0) + preWorkoutDelta);
 
-  // Calcula queima de café (100mg cafeina por xícara)
-  const coffeeBurn = calculateCaffeineThermogenesis(currentCoffee * 100, bmr).burnKcal;
+  const profile = await getActiveProfile();
+  const coffeeCaffeinePerCup = profile?.coffeeConfig?.caffeineMg || DEFAULT_COFFEE_CONFIG.caffeineMg;
+  const formula = profile?.preWorkoutFormula || USER_PRE_WORKOUT_FORMULA;
+
+  // Calcula queima de café
+  const coffeeBurn = calculateCaffeineThermogenesis(currentCoffee * coffeeCaffeinePerCup, bmr).burnKcal;
 
   // Calcula queima de pré-treino
-  const profile = await getActiveProfile();
-  const formula = profile?.preWorkoutFormula || USER_PRE_WORKOUT_FORMULA;
   const preWorkoutBurn = calculatePreWorkoutThermogenesis(formula, bmr, currentPreWorkout).totalThermogenicKcal;
 
   const totalBurn = coffeeBurn + preWorkoutBurn;
