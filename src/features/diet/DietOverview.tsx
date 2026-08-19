@@ -41,6 +41,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
   const [isThermoConfigOpen, setIsThermoConfigOpen] = useState(false);
   const [waterDrunkMl, setWaterDrunkMl] = useState<number>(1500);
   const [eatBonusCalories, setEatBonusCalories] = useState<boolean>(false);
+  const [collapsedMealIds, setCollapsedMealIds] = useState<Set<number>>(() => new Set([2, 3, 4, 5])); // Inicialmente apenas a primeira fica aberta
   const [thermogenicLog, setThermogenicLog] = useState<DailyThermogenicLog>({
     date: new Date().toISOString().split('T')[0],
     blackCoffeeCups: 0,
@@ -158,6 +159,18 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
   const actualTdeeToday = baseTdee + extraBurnKcal;
   const netDeficitToday = actualTdeeToday - totalCaloriesConsumed;
   const plannedFullDeficit = (baseTdee - stats.targetCalories) + extraBurnKcal;
+
+  const toggleMealCollapse = (mealOrder: number) => {
+    setCollapsedMealIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(mealOrder)) {
+        next.delete(mealOrder);
+      } else {
+        next.add(mealOrder);
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="space-y-4 pb-28 max-w-lg mx-auto p-4 animate-in fade-in duration-300">
@@ -463,19 +476,29 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
         {mealPlans.map((meal, index) => {
           const preset = HUMAN_MEAL_PRESETS[index] || { time: '18:00', icon: Sun };
           const IconComponent = preset.icon;
+          const isCollapsed = collapsedMealIds.has(meal.order);
 
           return (
             <div key={meal.id || meal.order} className="relative flex items-start gap-3">
-              {/* Timeline Node Badge */}
-              <div className="w-7 h-7 rounded-full bg-[#050811] border-2 border-blue-500 text-blue-400 flex items-center justify-center shrink-0 z-10 shadow-md">
+              {/* Timeline Node Badge (Clickable to Toggle) */}
+              <button
+                type="button"
+                onClick={() => toggleMealCollapse(meal.order)}
+                className={`w-7 h-7 rounded-full bg-[#050811] border-2 flex items-center justify-center shrink-0 z-10 shadow-md transition-all btn-tactile ${
+                  !isCollapsed ? 'border-blue-500 text-blue-400 glow-blue scale-105' : 'border-slate-700 text-slate-500 hover:border-slate-500'
+                }`}
+                title={`Clique para ${isCollapsed ? 'abrir' : 'recolher'} ${meal.name}`}
+              >
                 <IconComponent className="w-3.5 h-3.5" />
-              </div>
+              </button>
 
               {/* Meal Card Content */}
               <div className="flex-1 min-w-0">
                 <MealCard
                   meal={meal}
                   timeLabel={preset.time}
+                  isCollapsed={isCollapsed}
+                  onToggleCollapse={() => toggleMealCollapse(meal.order)}
                   onUpdateMeal={handleUpdateMeal}
                   onDeleteMeal={mealPlans.length > 1 ? handleDeleteMeal : undefined}
                 />
