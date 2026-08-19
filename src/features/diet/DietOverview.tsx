@@ -11,7 +11,7 @@ import {
   Sunrise,
   Sunset,
   Moon,
-  Sparkles
+  UtensilsCrossed
 } from 'lucide-react';
 import { MealPlan, UserProfile, MetabolicStats, DailyThermogenicLog } from '../../core/storage/types';
 import { db, getTodayThermogenicLog, updateTodayThermogenics, getActiveProfile } from '../../core/storage/db';
@@ -441,7 +441,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
             className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600/20 to-emerald-500/20 border border-emerald-500/30 text-emerald-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile shadow-sm"
             title="Montador de Cardápio (Automático ou Passo a Passo)"
           >
-            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            <UtensilsCrossed className="w-3.5 h-3.5 text-emerald-400" />
             <span>Montar Cardápio</span>
           </button>
 
