@@ -7,11 +7,11 @@ import {
   Zap,
   Coffee,
   Settings2,
-  TrendingDown,
   Sun,
   Sunrise,
   Sunset,
-  Moon
+  Moon,
+  Sparkles
 } from 'lucide-react';
 import { MealPlan, UserProfile, MetabolicStats, DailyThermogenicLog } from '../../core/storage/types';
 import { db, getTodayThermogenicLog, updateTodayThermogenics, getActiveProfile } from '../../core/storage/db';
@@ -20,6 +20,7 @@ import { calculateFoodNutrients } from '../../core/math/macroSolver';
 import { MealCard } from './MealCard';
 import { ShoppingListModal } from './ShoppingListModal';
 import { ThermogenicsConfigModal } from './ThermogenicsConfigModal';
+import { SmartDietWizardModal } from './SmartDietWizardModal';
 
 interface DietOverviewProps {
   profile: UserProfile;
@@ -39,6 +40,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
   const [isShoppingOpen, setIsShoppingOpen] = useState(false);
   const [isThermoConfigOpen, setIsThermoConfigOpen] = useState(false);
+  const [isSmartWizardOpen, setIsSmartWizardOpen] = useState(false);
   const [waterDrunkMl, setWaterDrunkMl] = useState<number>(1500);
   const [eatBonusCalories, setEatBonusCalories] = useState<boolean>(false);
   const [collapsedMealIds, setCollapsedMealIds] = useState<Set<number>>(() => new Set([2, 3, 4, 5])); // Inicialmente apenas a primeira fica aberta
@@ -231,22 +233,15 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
           </div>
         </div>
 
-        {/* Dial Meta Legend & Real Deficit Badge */}
-        <div className="w-full space-y-2 mt-2">
-          <div className="flex items-center justify-center gap-3 text-xs font-mono">
-            <span className="text-slate-400">
-              Ingerido: <strong className="text-white">{totalCaloriesConsumed}</strong>
-            </span>
-            <span className="text-slate-600">&bull;</span>
-            <span className="text-slate-400">
-              Meta: <strong className="text-white">{effectiveCalorieTarget}</strong> kcal
-            </span>
-          </div>
+        {/* Real-Time Deficit & Burn Badge */}
+        <div className="mt-2 space-y-1">
+          <div className="flex items-center justify-center gap-2 flex-wrap text-xs font-mono">
+            <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#060A14] border border-white/[0.06]">
+              <span className="text-slate-400">Meta:</span>
+              <strong className="text-white font-bold">{effectiveCalorieTarget} kcal</strong>
+            </div>
 
-          {/* Déficit Real Pill & Strategy Toggle */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#060A14] border border-white/[0.08] text-[11px] font-mono shadow-sm">
-              <TrendingDown className="w-3.5 h-3.5 text-amber-400" />
+            <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-xs font-mono">
               <span className="text-slate-300">Déficit Projetado:</span>
               <strong className="text-amber-400 font-bold">
                 -{totalCaloriesConsumed === 0 ? plannedFullDeficit : netDeficitToday} kcal
@@ -439,26 +434,38 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
           <span>Timeline de Refeições</span>
         </span>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          {/* Smart Diet Wizard Button */}
+          <button
+            onClick={() => setIsSmartWizardOpen(true)}
+            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600/20 to-emerald-500/20 border border-emerald-500/30 text-emerald-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile shadow-sm"
+            title="Montador Inteligente de Dieta (Custo-Benefício & Foco)"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400 fill-emerald-400" />
+            <span>Montar com IA</span>
+          </button>
+
           <button
             onClick={() => setIsShoppingOpen(true)}
-            className="px-3 py-1.5 rounded-xl bg-[#090F1E] border border-white/[0.08] hover:border-emerald-500/40 text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile shadow-sm"
+            className="p-1.5 px-2.5 rounded-xl bg-[#090F1E] border border-white/[0.08] hover:border-emerald-500/40 text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile shadow-sm"
+            title="Lista de Compras da Semana"
           >
             <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Compras</span>
+            <span className="hidden sm:inline">Compras</span>
           </button>
 
           <button
             onClick={handleAddMeal}
-            className="px-3 py-1.5 rounded-xl bg-blue-600/20 border border-blue-500/40 text-blue-400 hover:bg-blue-600/30 text-xs font-bold transition-all flex items-center gap-1 btn-tactile shadow-sm"
+            className="p-1.5 px-2.5 rounded-xl bg-blue-600/20 border border-blue-500/40 text-blue-400 hover:bg-blue-600/30 text-xs font-bold transition-all flex items-center gap-1 btn-tactile shadow-sm"
+            title="Adicionar Refeição Extra"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Refeição</span>
+            <span className="hidden sm:inline">Refeição</span>
           </button>
 
           <button
             onClick={handleResetDay}
-            className="p-2 rounded-xl bg-[#090F1E] border border-white/[0.08] text-slate-400 hover:text-white btn-tactile"
+            className="p-1.5 rounded-xl bg-[#090F1E] border border-white/[0.08] text-slate-400 hover:text-white btn-tactile"
             title="Resetar Checks do Dia"
           >
             <RotateCcw className="w-3.5 h-3.5" />
@@ -525,6 +532,17 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
         onClose={() => setIsThermoConfigOpen(false)}
         profile={profile}
         onSaved={loadMealsAndProfile}
+      />
+
+      <SmartDietWizardModal
+        isOpen={isSmartWizardOpen}
+        onClose={() => setIsSmartWizardOpen(false)}
+        profile={profile}
+        stats={stats}
+        onApplyDiet={(plans) => {
+          setMealPlans(plans);
+          loadMealsAndProfile();
+        }}
       />
     </div>
   );
