@@ -20,7 +20,7 @@ import { calculateFoodNutrients } from '../../core/math/macroSolver';
 import { MealCard } from './MealCard';
 import { ShoppingListModal } from './ShoppingListModal';
 import { ThermogenicsConfigModal } from './ThermogenicsConfigModal';
-import { SmartDietWizardModal } from './SmartDietWizardModal';
+import { DietBuilderModal } from './DietBuilderModal';
 
 interface DietOverviewProps {
   profile: UserProfile;
@@ -435,14 +435,14 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
         </span>
 
         <div className="flex items-center gap-1.5">
-          {/* Smart Diet Wizard Button */}
+          {/* Diet Builder Button */}
           <button
             onClick={() => setIsSmartWizardOpen(true)}
             className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600/20 to-emerald-500/20 border border-emerald-500/30 text-emerald-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile shadow-sm"
-            title="Montador Inteligente de Dieta (Custo-Benefício & Foco)"
+            title="Montador de Cardápio (Automático ou Passo a Passo)"
           >
-            <Sparkles className="w-3.5 h-3.5 text-emerald-400 fill-emerald-400" />
-            <span>Montar com IA</span>
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Montar Cardápio</span>
           </button>
 
           <button
@@ -534,7 +534,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
         onSaved={loadMealsAndProfile}
       />
 
-      <SmartDietWizardModal
+      <DietBuilderModal
         isOpen={isSmartWizardOpen}
         onClose={() => setIsSmartWizardOpen(false)}
         profile={profile}
