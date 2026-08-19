@@ -183,10 +183,20 @@ const UNIT_ABBREVIATIONS: Record<string, string> = {
   'concha(s)': 'cch',
   'copo': 'copo',
   'copo(s)': 'copo',
+  'lata': 'lata',
+  'lata(s)': 'lata',
+  'taça': 'taça',
+  'taça(s)': 'taça',
+  'bola': 'bola',
+  'bola(s)': 'bola',
+  'gomo': 'gomo',
+  'gomo(s)': 'gomo',
   'pote': 'pote',
   'pote(s)': 'pote',
   'clara': 'clara',
-  'clara(s)': 'clara'
+  'clara(s)': 'clara',
+  'tablete': 'tab',
+  'quadrado': 'quad'
 };
 
 /**
