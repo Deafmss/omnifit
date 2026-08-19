@@ -32,7 +32,7 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="sticky top-0 z-40 bg-[#050811]/85 backdrop-blur-2xl border-b border-white/[0.08] px-4 py-3 safe-top">
       <div className="max-w-lg mx-auto flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-[#0E1629] border border-blue-500/30 flex items-center justify-center shadow-lg shadow-blue-950/40 text-blue-400">
+          <div className="w-10 h-10 rounded-2xl bg-[#060A14] border border-[#84CC16]/30 flex items-center justify-center shadow-inner text-[#A3E635]">
             {activeTab === 'diet' && <Utensils className="w-5 h-5" />}
             {activeTab === 'workout' && <Dumbbell className="w-5 h-5" />}
             {activeTab === 'progress' && <TrendingUp className="w-5 h-5" />}

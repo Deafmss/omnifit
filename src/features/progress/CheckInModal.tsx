@@ -184,13 +184,13 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
                 step={5}
                 value={adherencePercentage}
                 onChange={(e) => setAdherencePercentage(Number(e.target.value))}
-                className="w-full accent-blue-500"
+                className="w-full accent-[#84CC16]"
               />
             </div>
 
             <button
               onClick={handleEvaluate}
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-emerald-500 text-white font-extrabold text-xs shadow-xl shadow-blue-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
+              className="w-full py-3.5 rounded-2xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-lg shadow-lime-500/20 transition-all flex items-center justify-center gap-2"
             >
               <Sparkles className="w-4 h-4" />
               <span>Avaliar Metabolismo Real</span>
@@ -199,13 +199,13 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
         ) : (
           /* Step 2: Evaluation Results */
           <div className="space-y-4 animate-in fade-in duration-300">
-            <div className="p-4 rounded-2xl bg-slate-900 border border-white/10 space-y-3">
+            <div className="p-4 rounded-2xl bg-[#060A14] border border-white/10 space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 uppercase">
+                <span className="text-xs font-bold text-slate-400 uppercase font-mono">
                   Diagnóstico Algorítmico
                 </span>
                 {evaluation.revealedTDEE && (
-                  <span className="text-xs font-mono font-bold text-emerald-400">
+                  <span className="text-xs font-mono font-bold text-[#A3E635]">
                     TDEE Revelado: {evaluation.revealedTDEE} kcal
                   </span>
                 )}
@@ -216,9 +216,9 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
               </p>
 
               {evaluation.suggestedCaloricChangeKcal !== 0 && (
-                <div className="p-3 rounded-xl bg-blue-950/40 border border-blue-500/30 flex items-center justify-between">
+                <div className="p-3 rounded-xl bg-[#090F1E] border border-[#84CC16]/30 flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-300">Ajuste Recomendado:</span>
-                  <span className="text-sm font-mono font-black text-blue-300">
+                  <span className="text-sm font-mono font-black text-[#A3E635]">
                     {evaluation.suggestedCaloricChangeKcal > 0 ? '+' : ''}
                     {evaluation.suggestedCaloricChangeKcal} kcal/dia
                   </span>
@@ -229,15 +229,15 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
             <div className="flex gap-2">
               <button
                 onClick={() => setEvaluation(null)}
-                className="flex-1 py-3 rounded-xl bg-slate-900 border border-white/10 text-slate-300 text-xs font-bold"
+                className="flex-1 py-3 rounded-2xl bg-[#060A14] border border-white/10 text-slate-300 text-xs font-bold"
               >
                 Revisar Respostas
               </button>
               <button
                 onClick={handleApplyAdjustment}
-                className="flex-1 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-extrabold shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-1.5"
+                className="flex-1 py-3 rounded-2xl btn-lime text-slate-950 text-xs font-display font-black uppercase tracking-wider shadow-lg shadow-lime-500/20 flex items-center justify-center gap-1.5"
               >
-                <Check className="w-4 h-4" />
+                <Check className="w-4 h-4 stroke-[3]" />
                 <span>Salvar Check-in</span>
               </button>
             </div>

@@ -43,8 +43,8 @@ export const WorkoutAuditorModal: React.FC<WorkoutAuditorModalProps> = ({
     >
       <div className="space-y-4">
         {/* Info Card */}
-        <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-950/40 to-slate-900 border border-blue-500/20 text-xs text-slate-300 space-y-1.5">
-          <div className="flex items-center gap-2 text-blue-400 font-bold">
+        <div className="p-3.5 rounded-2xl bg-[#090F1E] border border-white/[0.08] text-xs text-slate-300 space-y-1.5">
+          <div className="flex items-center gap-2 text-[#A3E635] font-bold">
             <Info className="w-4 h-4" />
             <span>Volume Semanal Efetivo</span>
           </div>
@@ -62,7 +62,7 @@ export const WorkoutAuditorModal: React.FC<WorkoutAuditorModalProps> = ({
             return (
               <div
                 key={result.muscle}
-                className="p-3.5 rounded-2xl bg-slate-900/70 border border-white/5 space-y-2.5"
+                className="p-3.5 rounded-2xl bg-[#090F1E] border border-white/[0.08] space-y-2.5 shadow-sm"
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -78,11 +78,11 @@ export const WorkoutAuditorModal: React.FC<WorkoutAuditorModalProps> = ({
 
                 {/* Visual Volume Bar with Markers */}
                 <div className="space-y-1">
-                  <div className="h-2 w-full bg-slate-950 rounded-full overflow-hidden border border-white/5 relative">
+                  <div className="h-2 w-full bg-[#060A14] rounded-full overflow-hidden border border-white/5 relative">
                     <div
                       className={`h-full rounded-full transition-all ${
                         result.status === 'optimal'
-                          ? 'bg-emerald-500'
+                          ? 'bg-[#84CC16]'
                           : result.status === 'under'
                           ? 'bg-amber-500'
                           : 'bg-red-500'

@@ -159,7 +159,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
               onClose();
               onReOnboard();
             }}
-            className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95"
+            className="w-full py-3.5 rounded-2xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-lg shadow-lime-500/20 transition-all flex items-center justify-center gap-2"
           >
             <RotateCcw className="w-4 h-4" />
             <span>Editar Parâmetros & Recalibrar Plano</span>
@@ -167,7 +167,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
           <button
             onClick={handleResetApp}
-            className="w-full py-2.5 rounded-xl bg-red-600/10 hover:bg-red-600/20 text-red-400 border border-red-500/20 font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95"
+            className="w-full py-2.5 rounded-2xl bg-red-600/10 hover:bg-red-600/20 text-red-400 border border-red-500/20 font-bold text-xs transition-all flex items-center justify-center gap-2"
           >
             <ShieldAlert className="w-4 h-4" />
             <span>Limpar Banco de Dados & Resetar App</span>

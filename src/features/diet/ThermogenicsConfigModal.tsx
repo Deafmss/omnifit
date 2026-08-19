@@ -409,9 +409,9 @@ export const ThermogenicsConfigModal: React.FC<ThermogenicsConfigModalProps> = (
           <button
             type="button"
             onClick={handleSave}
-            className="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 via-teal-500 to-emerald-500 text-white font-extrabold text-xs shadow-xl hover:brightness-110 active:scale-95 transition-all"
+            className="w-full py-3.5 rounded-2xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-lg shadow-lime-500/20 active:scale-95 transition-all"
           >
-            Salvar e Atualizar Minha Dieta 🚀
+            Salvar e Atualizar Dieta
           </button>
         </div>
       </div>

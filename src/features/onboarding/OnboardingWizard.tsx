@@ -599,7 +599,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
           <button
             type="button"
             onClick={() => setStep((s) => s + 1)}
-            className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-emerald-500 text-white font-bold text-sm shadow-lg shadow-blue-500/20 hover:brightness-110 transition-all flex items-center gap-1.5 active:scale-95 ml-auto"
+            className="px-6 py-3 rounded-2xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-lg shadow-lime-500/20 hover:brightness-110 transition-all flex items-center gap-1.5 ml-auto"
           >
             <span>Próximo</span>
             <ArrowRight className="w-4 h-4" />
@@ -609,10 +609,10 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
             type="button"
             onClick={handleFinish}
             disabled={isSaving}
-            className="w-full sm:w-auto px-8 py-3.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-blue-600 text-white font-extrabold text-sm shadow-xl shadow-emerald-500/20 hover:brightness-110 transition-all flex items-center justify-center gap-2 active:scale-95"
+            className="w-full sm:w-auto px-8 py-3.5 rounded-2xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-xl shadow-lime-500/20 hover:brightness-110 transition-all flex items-center justify-center gap-2"
           >
-            <Zap className="w-4 h-4 fill-white" />
-            <span>{isSaving ? 'Calibrando Algoritmo...' : 'Calibrar Meu Plano 🚀'}</span>
+            <Zap className="w-4 h-4 fill-slate-950" />
+            <span>{isSaving ? 'Calibrando Plano...' : 'Calibrar Meu Plano'}</span>
           </button>
         )}
       </div>

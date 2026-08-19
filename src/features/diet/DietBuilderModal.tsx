@@ -111,14 +111,14 @@ export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
       subtitle="Defina a estrutura e as preferências do seu plano alimentar"
     >
       <div className="space-y-4 max-h-[72vh] overflow-y-auto pr-1">
-        {/* Segmented Control (iOS / Linear Style) */}
+        {/* Segmented Control (Gym UI Kit Style) */}
         <div className="p-1 bg-[#060A14] border border-white/[0.08] rounded-2xl flex gap-1">
           <button
             type="button"
             onClick={() => setMode('auto')}
             className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
               mode === 'auto'
-                ? 'bg-[#0E1628] text-white shadow border border-white/10'
+                ? 'btn-lime text-slate-950 shadow-md font-extrabold'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -131,7 +131,7 @@ export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
             onClick={() => setMode('custom')}
             className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
               mode === 'custom'
-                ? 'bg-[#0E1628] text-white shadow border border-white/10'
+                ? 'btn-lime text-slate-950 shadow-md font-extrabold'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -157,7 +157,7 @@ export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
                       onClick={() => setBudgetTier(opt.id)}
                       className={`p-3.5 rounded-2xl border cursor-pointer transition-all flex items-start justify-between gap-3 ${
                         isSelected
-                          ? 'bg-[#0B1220] border-blue-500/80 text-white'
+                          ? 'bg-[#0B1220] border-[#84CC16] text-white shadow-sm'
                           : 'bg-[#060A14] border-white/[0.06] text-slate-400 hover:border-white/15'
                       }`}
                     >
@@ -178,11 +178,11 @@ export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
                       <div
                         className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 mt-0.5 ${
                           isSelected
-                            ? 'border-blue-500 bg-blue-600 text-white'
+                            ? 'border-[#84CC16] bg-[#84CC16] text-slate-950'
                             : 'border-slate-700 bg-transparent'
                         }`}
                       >
-                        {isSelected && <Check className="w-3 h-3" />}
+                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
                       </div>
                     </div>
                   );
@@ -208,7 +208,7 @@ export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
                     onClick={() => setFocus(item.id as DietFocus)}
                     className={`py-2.5 px-2 rounded-xl border text-xs font-bold transition-all text-center ${
                       focus === item.id
-                        ? 'bg-blue-600/20 border-blue-500 text-white'
+                        ? 'bg-[#84CC16]/20 border-[#84CC16] text-[#A3E635]'
                         : 'bg-[#060A14] border-white/[0.06] text-slate-400 hover:text-white'
                     }`}
                   >
@@ -224,7 +224,7 @@ export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
                 <label className="text-xs font-bold text-slate-300">
                   Refeições por dia
                 </label>
-                <span className="text-xs font-mono font-bold text-blue-400">
+                <span className="text-xs font-mono font-bold text-[#A3E635]">
                   {mealsCount} refeições
                 </span>
               </div>
@@ -237,7 +237,7 @@ export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
                     onClick={() => setMealsCount(num)}
                     className={`flex-1 py-2 rounded-xl text-xs font-mono font-bold transition-all ${
                       mealsCount === num
-                        ? 'bg-blue-600 text-white shadow-sm'
+                        ? 'btn-lime text-slate-950 shadow-sm'
                         : 'bg-[#060A14] border border-white/[0.06] text-slate-400 hover:text-white'
                     }`}
                   >
@@ -251,14 +251,14 @@ export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
             <div className="p-3.5 rounded-2xl bg-[#060A14] border border-white/[0.06] flex items-center justify-between font-mono text-xs">
               <span className="text-slate-400 font-medium">Meta Diária:</span>
               <span className="font-bold text-white">
-                <strong className="text-blue-400">{stats.targetCalories} kcal</strong> &bull; P: {stats.proteinGrams}g &bull; C: {stats.carbGrams}g &bull; G: {stats.fatGrams}g
+                <strong className="text-[#A3E635]">{stats.targetCalories} kcal</strong> &bull; P: {stats.proteinGrams}g &bull; C: {stats.carbGrams}g &bull; G: {stats.fatGrams}g
               </span>
             </div>
 
             {/* Botão de Ação Sólido */}
             <button
               onClick={handleGenerateAutomatic}
-              className="w-full py-3.5 px-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center btn-tactile"
+              className="w-full py-3.5 px-4 rounded-2xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-lg shadow-lime-500/20 transition-all flex items-center justify-center"
             >
               <span>Criar Plano Alimentar</span>
             </button>
@@ -281,7 +281,7 @@ export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
                 <label className="text-xs font-bold text-slate-300">
                   Refeições por dia
                 </label>
-                <span className="text-xs font-mono font-bold text-blue-400">
+                <span className="text-xs font-mono font-bold text-[#A3E635]">
                   {mealsCount} refeições
                 </span>
               </div>
@@ -294,7 +294,7 @@ export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
                     onClick={() => setMealsCount(num)}
                     className={`flex-1 py-2 rounded-xl text-xs font-mono font-bold transition-all ${
                       mealsCount === num
-                        ? 'bg-blue-600 text-white shadow-sm'
+                        ? 'btn-lime text-slate-950 shadow-sm'
                         : 'bg-[#060A14] border border-white/[0.06] text-slate-400 hover:text-white'
                     }`}
                   >
@@ -306,7 +306,7 @@ export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
 
             <button
               onClick={handleStartBlank}
-              className="w-full py-3.5 px-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center btn-tactile"
+              className="w-full py-3.5 px-4 rounded-2xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-lg shadow-lime-500/20 transition-all flex items-center justify-center"
             >
               <span>Iniciar Montagem Manual</span>
             </button>

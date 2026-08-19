@@ -186,7 +186,7 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
 
         <button
           onClick={handleFinishWorkout}
-          className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-display font-extrabold text-xs shadow-lg shadow-emerald-500/20 btn-tactile flex items-center gap-1.5"
+          className="px-4 py-2 rounded-xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-lg shadow-lime-500/20 flex items-center gap-1.5"
         >
           <Trophy className="w-4 h-4" />
           <span>Concluir Treino</span>
@@ -195,11 +195,11 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
 
       {/* Rest Timer Floating Bar */}
       {restSecondsRemaining !== null && (
-        <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-emerald-950 border-b border-white/10 px-4 py-2.5 flex items-center justify-between animate-in slide-in-from-top-2">
+        <div className="bg-[#090F1E] border-b border-white/10 px-4 py-2.5 flex items-center justify-between animate-in slide-in-from-top-2">
           <div className="flex items-center gap-2">
-            <Clock className="w-4 h-4 text-cyan-400 animate-pulse" />
+            <Clock className="w-4 h-4 text-[#A3E635] animate-pulse" />
             <span className="text-xs font-bold text-slate-200">Tempo de Descanso:</span>
-            <span className="text-sm font-mono font-black text-white glow-emerald">
+            <span className="text-sm font-mono font-black text-[#A3E635]">
               {formatTimer(restSecondsRemaining)}
             </span>
           </div>
@@ -277,7 +277,7 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
                     key={setIdx}
                     className={`grid grid-cols-12 gap-2 items-center p-2 rounded-2xl border transition-all ${
                       set.completed
-                        ? 'bg-emerald-950/20 border-emerald-500/40'
+                        ? 'bg-[#84CC16]/10 border-[#84CC16]/40'
                         : 'bg-[#060A14] border-white/[0.05]'
                     }`}
                   >
@@ -292,7 +292,7 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
                         onChange={(e) =>
                           handleUpdateSet(exIdx, setIdx, 'weightKg', e.target.value === '' ? '' : e.target.value)
                         }
-                        className="w-full max-w-[70px] py-1 px-2 bg-slate-950 border border-white/10 rounded-xl text-center text-xs font-bold text-white font-mono focus:border-blue-500"
+                        className="w-full max-w-[70px] py-1 px-2 bg-slate-950 border border-white/10 rounded-xl text-center text-xs font-bold text-white font-mono focus:border-[#84CC16]"
                       />
                     </div>
 
@@ -303,7 +303,7 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
                         onChange={(e) =>
                           handleUpdateSet(exIdx, setIdx, 'reps', e.target.value === '' ? '' : e.target.value)
                         }
-                        className="w-full max-w-[70px] py-1 px-2 bg-slate-950 border border-white/10 rounded-xl text-center text-xs font-bold text-white font-mono focus:border-blue-500"
+                        className="w-full max-w-[70px] py-1 px-2 bg-slate-950 border border-white/10 rounded-xl text-center text-xs font-bold text-white font-mono focus:border-[#84CC16]"
                       />
                     </div>
 
@@ -312,8 +312,8 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
                         onClick={() => handleToggleSet(exIdx, setIdx)}
                         className={`w-7 h-7 rounded-xl border flex items-center justify-center transition-all btn-tactile ${
                           set.completed
-                            ? 'bg-emerald-500 border-emerald-400 text-slate-950 shadow-md glow-emerald'
-                            : 'border-white/20 hover:border-emerald-400 bg-slate-950/60 text-slate-500'
+                            ? 'bg-[#84CC16] border-[#84CC16] text-slate-950 shadow-md'
+                            : 'border-white/20 hover:border-[#84CC16] bg-slate-950/60 text-slate-500'
                         }`}
                       >
                         <Check className="w-4 h-4 stroke-[3]" />
@@ -330,8 +330,8 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
       {/* Finished Summary Modal Overlay */}
       {isFinished && summaryData && (
         <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-3xl bg-[#090F1E] border border-emerald-500/30 p-6 text-center space-y-4 shadow-2xl animate-in zoom-in-95">
-            <div className="w-16 h-16 rounded-3xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center mx-auto">
+          <div className="w-full max-w-sm rounded-3xl bg-[#090F1E] border border-[#84CC16]/30 p-6 text-center space-y-4 shadow-2xl animate-in zoom-in-95">
+            <div className="w-16 h-16 rounded-3xl bg-[#84CC16]/20 border border-[#84CC16]/40 text-[#A3E635] flex items-center justify-center mx-auto">
               <Trophy className="w-8 h-8" />
             </div>
 
@@ -340,7 +340,7 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
                 Treino Finalizado com Sucesso!
               </h3>
               <p className="text-xs text-slate-400">
-                Sessão registrada e computada no seu balanço metabólico diário.
+                Sessão registrada e computada no seu balanço diário.
               </p>
             </div>
 
@@ -354,7 +354,7 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
               </div>
 
               <div className="p-3 rounded-2xl bg-[#060A14] border border-white/5 space-y-1">
-                <Zap className="w-4 h-4 text-blue-400 mx-auto" />
+                <Zap className="w-4 h-4 text-[#A3E635] mx-auto" />
                 <span className="text-[10px] text-slate-500 block">Volume Total</span>
                 <strong className="text-base font-bold text-white">
                   {summaryData.volume} kg
@@ -364,7 +364,7 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
 
             <button
               onClick={onClose}
-              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-display font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-emerald-500/20 btn-tactile"
+              className="w-full py-3.5 rounded-2xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-lg shadow-lime-500/20"
             >
               Fechar & Voltar ao Painel
             </button>

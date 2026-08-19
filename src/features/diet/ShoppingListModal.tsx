@@ -42,7 +42,7 @@ export const ShoppingListModal: React.FC<ShoppingListModalProps> = ({
       <div className="space-y-4">
         {/* Days Filter */}
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+          <span className="text-xs font-bold text-slate-300 uppercase tracking-wider font-mono">
             Período da Lista:
           </span>
           <div className="flex gap-1.5">
@@ -50,10 +50,10 @@ export const ShoppingListModal: React.FC<ShoppingListModalProps> = ({
               <button
                 key={d}
                 onClick={() => handleDaysChange(d)}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold font-mono transition-all ${
                   days === d
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-slate-900 text-slate-400 border border-white/5'
+                    ? 'btn-lime text-slate-950 shadow-sm font-black'
+                    : 'bg-[#060A14] text-slate-400 border border-white/5 hover:text-white'
                 }`}
               >
                 {d} dias
@@ -68,17 +68,17 @@ export const ShoppingListModal: React.FC<ShoppingListModalProps> = ({
             <div
               key={item.foodId}
               onClick={() => toggleItem(item.foodId)}
-              className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
+              className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
                 item.checked
-                  ? 'bg-slate-950/60 border-white/5 opacity-50'
-                  : 'bg-slate-900/60 border-white/10 hover:border-emerald-500/30'
+                  ? 'bg-[#060A14]/60 border-white/5 opacity-50'
+                  : 'bg-[#090F1E] border-white/[0.08] hover:border-[#84CC16]/40 shadow-sm'
               }`}
             >
               <div className="flex items-center gap-3">
                 <div
                   className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all ${
                     item.checked
-                      ? 'bg-emerald-500 border-emerald-400 text-slate-950'
+                      ? 'bg-[#84CC16] border-[#84CC16] text-slate-950'
                       : 'border-white/20'
                   }`}
                 >
@@ -93,7 +93,7 @@ export const ShoppingListModal: React.FC<ShoppingListModalProps> = ({
                 </span>
               </div>
 
-              <span className="text-xs font-mono font-bold text-emerald-400">
+              <span className="text-xs font-mono font-bold text-[#A3E635]">
                 {item.servingDescription}
               </span>
             </div>

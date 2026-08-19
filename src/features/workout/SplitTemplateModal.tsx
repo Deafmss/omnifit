@@ -129,21 +129,21 @@ export const SplitTemplateModal: React.FC<SplitTemplateModalProps> = ({
             <div
               key={tpl.id}
               onClick={() => handleChoose(tpl.id)}
-              className="p-4 rounded-2xl bg-[#060A14] border border-white/[0.08] hover:border-blue-500/50 hover:bg-[#090F1E] transition-all cursor-pointer space-y-2.5 group btn-tactile"
+              className="p-4 rounded-3xl bg-[#060A14] border border-white/[0.08] hover:border-[#84CC16]/60 hover:bg-[#090F1E] transition-all cursor-pointer space-y-2.5 group btn-tactile"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-blue-600/15 border border-blue-500/30 text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <div className="w-8 h-8 rounded-xl bg-[#84CC16]/15 border border-[#84CC16]/30 text-[#A3E635] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                     <IconComponent className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="font-extrabold text-sm text-white font-display group-hover:text-blue-400 transition-colors">
+                    <h4 className="font-extrabold text-sm text-white font-display group-hover:text-[#A3E635] transition-colors">
                       {tpl.title}
                     </h4>
                   </div>
                 </div>
 
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold font-mono border ${tpl.badgeColor}`}>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold font-mono border bg-[#84CC16]/15 text-[#A3E635] border-[#84CC16]/30">
                   {tpl.badge}
                 </span>
               </div>
@@ -155,16 +155,16 @@ export const SplitTemplateModal: React.FC<SplitTemplateModalProps> = ({
               <div className="space-y-1 pt-1 border-t border-white/[0.04]">
                 {tpl.details.map((d, i) => (
                   <div key={i} className="flex items-center gap-1.5 text-[11px] text-slate-300 font-mono">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#84CC16] shrink-0" />
                     <span>{d}</span>
                   </div>
                 ))}
               </div>
 
               <div className="pt-1 flex items-center justify-end">
-                <span className="text-xs font-bold text-blue-400 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-xs font-bold text-[#A3E635] flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <span>Aplicar esta divisão</span>
-                  <Check className="w-3.5 h-3.5" />
+                  <Check className="w-3.5 h-3.5 stroke-[3]" />
                 </span>
               </div>
             </div>
