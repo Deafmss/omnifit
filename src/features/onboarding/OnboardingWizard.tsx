@@ -24,12 +24,12 @@ interface OnboardingWizardProps {
 export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, initialProfile }) => {
   const [step, setStep] = useState<number>(1);
 
-  // Form State
+  // Form State - aceita string vazia para digitação fluida
   const [name, setName] = useState(initialProfile?.name || '');
-  const [age, setAge] = useState<number>(initialProfile?.age || 26);
+  const [age, setAge] = useState<number | string>(initialProfile?.age ?? 26);
   const [gender, setGender] = useState<Gender>(initialProfile?.gender || 'male');
-  const [heightCm, setHeightCm] = useState<number>(initialProfile?.heightCm || 178);
-  const [weightKg, setWeightKg] = useState<number>(initialProfile?.weightKg || 80);
+  const [heightCm, setHeightCm] = useState<number | string>(initialProfile?.heightCm ?? 178);
+  const [weightKg, setWeightKg] = useState<number | string>(initialProfile?.weightKg ?? 80);
   const [bodyFatPercentage, setBodyFatPercentage] = useState<number | undefined>(initialProfile?.bodyFatPercentage || 18);
   
   const [goal, setGoal] = useState<FitnessGoal>(initialProfile?.goal || 'recomposition');
@@ -45,12 +45,16 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
   const handleFinish = async () => {
     setIsSaving(true);
     try {
+      const sanitizedAge = typeof age === 'number' && age > 0 ? age : Number(age) || 26;
+      const sanitizedHeight = typeof heightCm === 'number' && heightCm > 0 ? heightCm : Number(heightCm) || 178;
+      const sanitizedWeight = typeof weightKg === 'number' && weightKg > 0 ? weightKg : Number(weightKg) || 80;
+
       const profileData: UserProfile = {
         name: name.trim() || 'Usuário',
-        age,
+        age: sanitizedAge,
         gender,
-        heightCm,
-        weightKg,
+        heightCm: sanitizedHeight,
+        weightKg: sanitizedWeight,
         bodyFatPercentage,
         goal,
         experienceLevel,
@@ -66,7 +70,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
       };
 
       await saveProfile(profileData);
-      await logWeightEntry(new Date().toISOString().split('T')[0], weightKg, bodyFatPercentage);
+      await logWeightEntry(new Date().toISOString().split('T')[0], sanitizedWeight, bodyFatPercentage);
 
       // Calcula as metas calóricas determinísticas
       const stats = calculateMetabolicStats(profileData);
@@ -180,8 +184,9 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
                   <input
                     type="number"
                     value={age}
-                    onChange={(e) => setAge(Math.max(12, Number(e.target.value)))}
-                    className="w-full px-3 py-3 bg-[#0D1527] border border-white/10 rounded-xl text-white font-bold text-center focus:outline-none focus:border-blue-500"
+                    onChange={(e) => setAge(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="Ex: 26"
+                    className="w-full px-3 py-3 bg-[#0D1527] border border-white/10 rounded-xl text-white font-bold text-center focus:outline-none focus:border-blue-500 font-mono"
                   />
                 </div>
                 <div>
@@ -191,8 +196,9 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
                   <input
                     type="number"
                     value={heightCm}
-                    onChange={(e) => setHeightCm(Math.max(100, Number(e.target.value)))}
-                    className="w-full px-3 py-3 bg-[#0D1527] border border-white/10 rounded-xl text-white font-bold text-center focus:outline-none focus:border-blue-500"
+                    onChange={(e) => setHeightCm(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="Ex: 178"
+                    className="w-full px-3 py-3 bg-[#0D1527] border border-white/10 rounded-xl text-white font-bold text-center focus:outline-none focus:border-blue-500 font-mono"
                   />
                 </div>
                 <div>
@@ -203,8 +209,9 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
                     type="number"
                     step="0.1"
                     value={weightKg}
-                    onChange={(e) => setWeightKg(Math.max(30, Number(e.target.value)))}
-                    className="w-full px-3 py-3 bg-[#0D1527] border border-white/10 rounded-xl text-white font-bold text-center focus:outline-none focus:border-blue-500"
+                    onChange={(e) => setWeightKg(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="Ex: 80"
+                    className="w-full px-3 py-3 bg-[#0D1527] border border-white/10 rounded-xl text-white font-bold text-center focus:outline-none focus:border-blue-500 font-mono"
                   />
                 </div>
               </div>

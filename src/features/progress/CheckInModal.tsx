@@ -26,7 +26,7 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
   weightLogs,
   onRecalibrated
 }) => {
-  const [currentWeight, setCurrentWeight] = useState<number>(profile.weightKg);
+  const [currentWeight, setCurrentWeight] = useState<number | string>(profile.weightKg);
   const [hungerRating, setHungerRating] = useState<number>(2);
   const [energyRating, setEnergyRating] = useState<number>(4);
   const [adherencePercentage, setAdherencePercentage] = useState<number>(90);
@@ -36,10 +36,11 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
   const daysElapsed = Math.max(7, weightLogs.length);
 
   const handleEvaluate = () => {
+    const cleanWeight = typeof currentWeight === 'number' && currentWeight > 0 ? currentWeight : Number(currentWeight) || profile.weightKg;
     const result = evaluateAdaptiveMetabolism(
       profile.goal,
       initialEma,
-      currentWeight,
+      cleanWeight,
       daysElapsed,
       stats.targetCalories,
       adherencePercentage,
@@ -51,19 +52,19 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
   const handleApplyAdjustment = async () => {
     if (!evaluation) return;
 
-    // Registra a pesagem no banco
+    const cleanWeight = typeof currentWeight === 'number' && currentWeight > 0 ? currentWeight : Number(currentWeight) || profile.weightKg;
     const today = new Date().toISOString().split('T')[0];
-    await logWeightEntry(today, currentWeight);
+    await logWeightEntry(today, cleanWeight);
 
     // Se houver ajuste calórico, atualizamos o perfil
     await saveProfile({
       ...profile,
-      weightKg: currentWeight
+      weightKg: cleanWeight
     });
 
     await db.checkInLogs.add({
       date: today,
-      weightKg: currentWeight,
+      weightKg: cleanWeight,
       hungerRating: hungerRating as any,
       energyRating: energyRating as any,
       adherencePercentage,
@@ -99,7 +100,8 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
                 type="number"
                 step="0.1"
                 value={currentWeight}
-                onChange={(e) => setCurrentWeight(Number(e.target.value))}
+                onChange={(e) => setCurrentWeight(e.target.value === '' ? '' : e.target.value)}
+                placeholder="Ex: 80"
                 className="w-full px-4 py-3 bg-slate-900 border border-white/10 rounded-xl text-white font-mono font-bold text-lg text-center focus:border-blue-500"
               />
             </div>

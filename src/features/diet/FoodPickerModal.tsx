@@ -17,7 +17,7 @@ export const FoodPickerModal: React.FC<FoodPickerModalProps> = ({
 }) => {
   const [search, setSearch] = useState('');
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
-  const [grams, setGrams] = useState<number>(100);
+  const [grams, setGrams] = useState<number | string>(100);
 
   const filteredFoods = TACO_FOOD_DATABASE.filter(
     (f) => search === '' || f.name.toLowerCase().includes(search.toLowerCase())
@@ -25,7 +25,8 @@ export const FoodPickerModal: React.FC<FoodPickerModalProps> = ({
 
   const handleConfirm = () => {
     if (selectedFood) {
-      onSelectFood(selectedFood, grams);
+      const cleanGrams = typeof grams === 'number' && grams > 0 ? grams : Number(grams) || 100;
+      onSelectFood(selectedFood, cleanGrams);
       setSelectedFood(null);
       setGrams(100);
       onClose();
@@ -87,8 +88,8 @@ export const FoodPickerModal: React.FC<FoodPickerModalProps> = ({
                 <input
                   type="number"
                   value={grams}
-                  onChange={(e) => setGrams(Math.max(1, Number(e.target.value)))}
-                  className="w-20 px-2 py-1 bg-slate-950 border border-white/10 rounded-lg text-sm text-white font-bold text-center"
+                  onChange={(e) => setGrams(e.target.value === '' ? '' : e.target.value)}
+                  className="w-20 px-2 py-1 bg-slate-950 border border-white/10 rounded-lg text-sm text-white font-bold text-center font-mono"
                 />
                 <span className="text-xs font-bold text-slate-400">g</span>
               </div>

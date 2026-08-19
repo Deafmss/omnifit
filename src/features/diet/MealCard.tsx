@@ -20,7 +20,7 @@ export const MealCard: React.FC<MealCardProps> = ({
   const [swapState, setSwapState] = useState<{ originalFoodId: string; originalGrams: number } | null>(null);
   const [isAddFoodOpen, setIsAddFoodOpen] = useState(false);
   const [editingGramsIndex, setEditingGramsIndex] = useState<number | null>(null);
-  const [tempGrams, setTempGrams] = useState<number>(100);
+  const [tempGrams, setTempGrams] = useState<number | string>(100);
 
   const currentTotals = calculatePortionsTotal(meal.portions, FOOD_DATABASE_MAP);
 
@@ -55,7 +55,8 @@ export const MealCard: React.FC<MealCardProps> = ({
 
   const handleSaveGrams = (index: number) => {
     const newPortions = [...meal.portions];
-    newPortions[index].grams = Math.max(1, tempGrams);
+    const cleanGrams = typeof tempGrams === 'number' && tempGrams > 0 ? tempGrams : Number(tempGrams) || 100;
+    newPortions[index].grams = Math.max(1, cleanGrams);
     onUpdateMeal({ ...meal, portions: newPortions });
     setEditingGramsIndex(null);
   };
@@ -151,7 +152,7 @@ export const MealCard: React.FC<MealCardProps> = ({
                     <input
                       type="number"
                       value={tempGrams}
-                      onChange={(e) => setTempGrams(Number(e.target.value))}
+                      onChange={(e) => setTempGrams(e.target.value === '' ? '' : e.target.value)}
                       className="w-16 px-1.5 py-0.5 bg-slate-950 border border-blue-500 rounded text-xs text-white font-bold text-center"
                       autoFocus
                     />

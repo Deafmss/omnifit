@@ -24,7 +24,7 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
 }) => {
   const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
   const [sessionLogs, setSessionLogs] = useState<WorkoutSessionLog[]>([]);
-  const [inputWeight, setInputWeight] = useState<number>(profile.weightKg);
+  const [inputWeight, setInputWeight] = useState<number | string>(profile.weightKg);
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
 
   const loadData = async () => {
@@ -43,8 +43,9 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
 
   const handleLogWeight = async (e: React.FormEvent) => {
     e.preventDefault();
+    const cleanWeight = typeof inputWeight === 'number' && inputWeight > 0 ? inputWeight : Number(inputWeight) || profile.weightKg;
     const today = new Date().toISOString().split('T')[0];
-    await logWeightEntry(today, inputWeight);
+    await logWeightEntry(today, cleanWeight);
     loadData();
     onProfileUpdated();
   };
@@ -131,7 +132,7 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
             type="number"
             step="0.1"
             value={inputWeight}
-            onChange={(e) => setInputWeight(Number(e.target.value))}
+            onChange={(e) => setInputWeight(e.target.value === '' ? '' : e.target.value)}
             placeholder="Ex: 80.5"
             className="flex-1 px-4 py-2.5 bg-slate-900 border border-white/10 rounded-xl text-sm font-bold text-white text-center font-mono focus:border-blue-500"
           />

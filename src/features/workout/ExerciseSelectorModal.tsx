@@ -20,10 +20,10 @@ export const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
   const [selectedMuscle, setSelectedMuscle] = useState<MuscleGroup | 'all'>('all');
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
 
-  const [sets, setSets] = useState<number>(3);
-  const [minReps, setMinReps] = useState<number>(8);
-  const [maxReps, setMaxReps] = useState<number>(12);
-  const [restSecs, setRestSecs] = useState<number>(90);
+  const [sets, setSets] = useState<number | string>(3);
+  const [minReps, setMinReps] = useState<number | string>(8);
+  const [maxReps, setMaxReps] = useState<number | string>(12);
+  const [restSecs, setRestSecs] = useState<number | string>(90);
 
   const filtered = EXERCISE_DATABASE.filter((ex) => {
     const matchesSearch = search === '' || ex.name.toLowerCase().includes(search.toLowerCase());
@@ -33,7 +33,12 @@ export const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
 
   const handleConfirm = () => {
     if (selectedExercise) {
-      onSelectExercise(selectedExercise, sets, minReps, maxReps, restSecs);
+      const cleanSets = typeof sets === 'number' && sets > 0 ? sets : Number(sets) || 3;
+      const cleanMin = typeof minReps === 'number' && minReps > 0 ? minReps : Number(minReps) || 8;
+      const cleanMax = typeof maxReps === 'number' && maxReps > 0 ? maxReps : Number(maxReps) || 12;
+      const cleanRest = typeof restSecs === 'number' && restSecs > 0 ? restSecs : Number(restSecs) || 90;
+
+      onSelectExercise(selectedExercise, cleanSets, cleanMin, cleanMax, cleanRest);
       setSelectedExercise(null);
       onClose();
     }
@@ -130,8 +135,8 @@ export const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
                 <input
                   type="number"
                   value={sets}
-                  onChange={(e) => setSets(Number(e.target.value))}
-                  className="w-full mt-1 p-1 bg-slate-950 border border-white/10 rounded-lg text-center font-bold text-white"
+                  onChange={(e) => setSets(e.target.value === '' ? '' : e.target.value)}
+                  className="w-full mt-1 p-1 bg-slate-950 border border-white/10 rounded-lg text-center font-bold text-white font-mono"
                 />
               </div>
 
@@ -141,15 +146,15 @@ export const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
                   <input
                     type="number"
                     value={minReps}
-                    onChange={(e) => setMinReps(Number(e.target.value))}
-                    className="w-full p-1 bg-slate-950 border border-white/10 rounded-lg text-center font-bold text-white text-xs"
+                    onChange={(e) => setMinReps(e.target.value === '' ? '' : e.target.value)}
+                    className="w-full p-1 bg-slate-950 border border-white/10 rounded-lg text-center font-bold text-white text-xs font-mono"
                   />
                   <span>-</span>
                   <input
                     type="number"
                     value={maxReps}
-                    onChange={(e) => setMaxReps(Number(e.target.value))}
-                    className="w-full p-1 bg-slate-950 border border-white/10 rounded-lg text-center font-bold text-white text-xs"
+                    onChange={(e) => setMaxReps(e.target.value === '' ? '' : e.target.value)}
+                    className="w-full p-1 bg-slate-950 border border-white/10 rounded-lg text-center font-bold text-white text-xs font-mono"
                   />
                 </div>
               </div>
@@ -159,8 +164,8 @@ export const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
                 <input
                   type="number"
                   value={restSecs}
-                  onChange={(e) => setRestSecs(Number(e.target.value))}
-                  className="w-full mt-1 p-1 bg-slate-950 border border-white/10 rounded-lg text-center font-bold text-white"
+                  onChange={(e) => setRestSecs(e.target.value === '' ? '' : e.target.value)}
+                  className="w-full mt-1 p-1 bg-slate-950 border border-white/10 rounded-lg text-center font-bold text-white font-mono"
                 />
               </div>
             </div>

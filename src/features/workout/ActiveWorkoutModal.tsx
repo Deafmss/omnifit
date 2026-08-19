@@ -74,9 +74,9 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleUpdateSet = (exIdx: number, setIdx: number, field: 'weightKg' | 'reps', val: number) => {
+  const handleUpdateSet = (exIdx: number, setIdx: number, field: 'weightKg' | 'reps', val: number | string) => {
     const newLogs = [...exerciseLogs];
-    newLogs[exIdx].sets[setIdx][field] = Math.max(0, val);
+    newLogs[exIdx].sets[setIdx][field] = val;
     setExerciseLogs(newLogs);
   };
 
@@ -105,13 +105,13 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
       if (!routineEx || !exercise) return;
 
       const completedSets = exLog.sets.filter((s) => s.completed);
-      const repsArray = completedSets.map((s) => s.reps);
+      const repsArray = completedSets.map((s) => Number(s.reps) || 0);
       const avgWeight = completedSets.length > 0
-        ? completedSets.reduce((acc, s) => acc + s.weightKg, 0) / completedSets.length
+        ? completedSets.reduce((acc, s) => acc + (Number(s.weightKg) || 0), 0) / completedSets.length
         : 0;
 
       completedSets.forEach((s) => {
-        totalVolumeLoad += s.weightKg * s.reps;
+        totalVolumeLoad += (Number(s.weightKg) || 0) * (Number(s.reps) || 0);
       });
 
       const feedback = evaluateDoubleProgression(
@@ -284,7 +284,7 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
                         type="number"
                         value={set.weightKg}
                         onChange={(e) =>
-                          handleUpdateSet(exIdx, setIdx, 'weightKg', Number(e.target.value))
+                          handleUpdateSet(exIdx, setIdx, 'weightKg', e.target.value === '' ? '' : e.target.value)
                         }
                         className="w-full max-w-[70px] py-1 px-2 bg-slate-950 border border-white/10 rounded-lg text-center text-xs font-bold text-white font-mono focus:border-blue-500"
                       />
@@ -295,7 +295,7 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
                         type="number"
                         value={set.reps}
                         onChange={(e) =>
-                          handleUpdateSet(exIdx, setIdx, 'reps', Number(e.target.value))
+                          handleUpdateSet(exIdx, setIdx, 'reps', e.target.value === '' ? '' : e.target.value)
                         }
                         className="w-full max-w-[70px] py-1 px-2 bg-slate-950 border border-white/10 rounded-lg text-center text-xs font-bold text-white font-mono focus:border-blue-500"
                       />

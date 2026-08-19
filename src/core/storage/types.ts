@@ -122,8 +122,8 @@ export interface Exercise {
 
 export interface WorkoutSetLog {
   setNumber: number;
-  weightKg: number;
-  reps: number;
+  weightKg: number | string;
+  reps: number | string;
   rpe?: number;
   completed: boolean;
 }
