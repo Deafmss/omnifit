@@ -147,7 +147,7 @@ export interface WorkoutExerciseLog {
 export interface WorkoutRoutine {
   id?: number;
   name: string;
-  splitCode: 'A' | 'B' | 'C' | 'D' | 'E';
+  splitCode: string;
   targetMuscles: MuscleGroup[];
   exercises: {
     exerciseId: string;
