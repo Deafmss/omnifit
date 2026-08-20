@@ -196,7 +196,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
   };
 
   return (
-    <div className="space-y-4 pb-28 max-w-lg mx-auto p-4">
+    <div className="space-y-4 pb-28 max-w-lg mx-auto px-3.5 sm:px-4 py-3 w-full box-border">
       {errorMsg && (
         <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-semibold">
           {errorMsg}

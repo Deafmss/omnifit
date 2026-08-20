@@ -193,7 +193,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#050811] text-slate-100 flex flex-col selection:bg-[#84CC16] selection:text-slate-950">
+    <div className="min-h-screen bg-[#050811] text-slate-100 flex flex-col selection:bg-[#84CC16] selection:text-slate-950 w-full max-w-full overflow-x-hidden">
       {/* Top Header */}
       <Header
         profile={profile}
@@ -204,7 +204,7 @@ export const App: React.FC = () => {
       />
 
       {/* Main Content View */}
-      <main className="flex-1">
+      <main className="flex-1 w-full max-w-full overflow-x-hidden">
         {activeTab === 'diet' && <DietOverview profile={profile} stats={stats} />}
         {activeTab === 'workout' && <WorkoutSplitView profile={profile} />}
         {activeTab === 'progress' && (
