@@ -6,12 +6,13 @@ import {
   Smartphone,
   Download,
   Upload,
-  CloudDownload
+  CloudDownload,
+  FileText,
+  Share2
 } from 'lucide-react';
 import { UserProfile, MetabolicStats } from '../../core/storage/types';
 import { UserAccount } from '../../core/auth/authService';
 import { Modal } from '../ui/Modal';
-import { db } from '../../core/storage/db';
 import {
   isInstallPromptAvailable,
   isIOSDevice,
@@ -21,6 +22,8 @@ import {
 import { isCloudSyncActive } from '../../core/supabase/cloudSync';
 import { downloadUserDataBackup, importUserData } from '../../core/backup/dataBackup';
 import { pullFromCloud } from '../../core/storage/cloudRestore';
+import { downloadPlanText, sharePlanText } from '../../core/backup/planExport';
+import { db } from '../../core/storage/db';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -95,6 +98,37 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     setInstallMsg(
       'Seu navegador não ofereceu a instalação automática. Abra o menu do navegador e escolha "Instalar aplicativo" ou "Adicionar à tela inicial".'
     );
+  };
+
+  /** Exporta o plano em texto, para levar ao nutricionista ou imprimir. */
+  const handleExportPlan = async (modo: 'baixar' | 'compartilhar') => {
+    setBackupError(null);
+    setBackupMsg(null);
+
+    try {
+      const [mealPlans, routines] = await Promise.all([
+        db.mealPlans.toArray(),
+        db.routines.toArray()
+      ]);
+
+      if (modo === 'baixar') {
+        const arquivo = downloadPlanText(profile, stats, mealPlans, routines);
+        setBackupMsg(`Plano salvo como "${arquivo}".`);
+        return;
+      }
+
+      const resultado = await sharePlanText(profile, stats, mealPlans, routines);
+      setBackupMsg(
+        resultado === 'compartilhado'
+          ? 'Plano compartilhado.'
+          : resultado === 'copiado'
+          ? 'Plano copiado para a área de transferência.'
+          : 'Seu navegador não permitiu compartilhar. Use o botão de baixar.'
+      );
+    } catch (err) {
+      console.error('Erro ao exportar o plano:', err);
+      setBackupError('Não foi possível gerar o plano. Tente novamente.');
+    }
   };
 
   const handleResetApp = async () => {
@@ -390,6 +424,32 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             onChange={handleImportBackup}
             className="hidden"
           />
+
+          <div className="pt-1 border-t border-white/[0.06] space-y-2">
+            <p className="text-[10px] text-slate-400 leading-snug">
+              Plano em texto para levar ao nutricionista ou personal, ou imprimir.
+            </p>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleExportPlan('baixar')}
+                className="py-2.5 rounded-2xl bg-[#060A14] hover:bg-[#060A14]/80 text-slate-300 border border-white/10 font-bold text-xs transition-all flex items-center justify-center gap-2"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Baixar plano</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleExportPlan('compartilhar')}
+                className="py-2.5 rounded-2xl bg-[#060A14] hover:bg-[#060A14]/80 text-slate-300 border border-white/10 font-bold text-xs transition-all flex items-center justify-center gap-2"
+              >
+                <Share2 className="w-4 h-4" />
+                <span>Compartilhar</span>
+              </button>
+            </div>
+          </div>
 
           {backupMsg && (
             <p className="text-[10px] font-mono text-[#A3E635] leading-snug">{backupMsg}</p>

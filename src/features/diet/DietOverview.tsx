@@ -20,6 +20,7 @@ import { MealCard } from './MealCard';
 import { ShoppingListModal } from './ShoppingListModal';
 import { ThermogenicsConfigModal } from './ThermogenicsConfigModal';
 import { DietBuilderModal } from './DietBuilderModal';
+import { CarbCycleModal } from './CarbCycleModal';
 
 interface DietOverviewProps {
   profile: UserProfile;
@@ -57,6 +58,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
   const [isShoppingOpen, setIsShoppingOpen] = useState(false);
   const [isThermoConfigOpen, setIsThermoConfigOpen] = useState(false);
   const [isSmartWizardOpen, setIsSmartWizardOpen] = useState(false);
+  const [isCarbCycleOpen, setIsCarbCycleOpen] = useState(false);
 
   // Guarda a ORDEM da refeição aberta, não o id do banco: os ids são
   // auto-incrementais e um conjunto fixo só acertava na primeira instalação.
@@ -450,6 +452,15 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
           profile={profile}
           stats={stats}
           onSaved={() => void reload()}
+        />
+      )}
+
+      {isCarbCycleOpen && (
+        <CarbCycleModal
+          isOpen
+          onClose={() => setIsCarbCycleOpen(false)}
+          profile={profile}
+          stats={stats}
         />
       )}
 
