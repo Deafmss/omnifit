@@ -426,6 +426,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
               timeLabel={preset.time}
               isCollapsed={isCollapsed}
               onToggleCollapse={() => toggleMealCollapse(meal.order)}
+              onReload={() => void reload()}
               onUpdateMeal={handleUpdateMeal}
               onDeleteMeal={mealPlans.length > 1 ? handleDeleteMeal : undefined}
             />

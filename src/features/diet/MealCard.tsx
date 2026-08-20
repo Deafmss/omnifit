@@ -16,6 +16,7 @@ import { logFoodConsumption, unlogFoodConsumption } from '../../core/storage/db'
 import { todayLocal } from '../../core/utils/dateUtils';
 import { MacroSwapModal } from './MacroSwapModal';
 import { FoodPickerModal } from './FoodPickerModal';
+import { MealReuseModal } from './MealReuseModal';
 
 interface MealCardProps {
   meal: MealPlan;
@@ -24,6 +25,12 @@ interface MealCardProps {
   onToggleCollapse?: () => void;
   onUpdateMeal: (updated: MealPlan) => void;
   onDeleteMeal?: (id: number) => void;
+  /**
+   * Recarrega os dados do banco sem escrever nada. Necessário para ações que
+   * já persistiram por conta própria (copiar refeição, aplicar modelo): usar
+   * `onUpdateMeal` aqui gravaria o objeto antigo por cima do que foi copiado.
+   */
+  onReload: () => void;
 }
 
 const getMealEmoji = (name: string, index: number) => {
@@ -42,7 +49,8 @@ export const MealCard: React.FC<MealCardProps> = ({
   isCollapsed: controlledCollapsed,
   onToggleCollapse,
   onUpdateMeal,
-  onDeleteMeal
+  onDeleteMeal,
+  onReload
 }) => {
   const [internalCollapsed, setInternalCollapsed] = useState(true);
   const isCollapsed = controlledCollapsed !== undefined ? controlledCollapsed : internalCollapsed;
@@ -63,6 +71,7 @@ export const MealCard: React.FC<MealCardProps> = ({
     originalGrams: number;
   } | null>(null);
   const [isAddFoodOpen, setIsAddFoodOpen] = useState(false);
+  const [isReuseOpen, setIsReuseOpen] = useState(false);
 
   // Estados de edição do nome e do horário da refeição
   const [isEditingName, setIsEditingName] = useState(false);
@@ -386,6 +395,16 @@ export const MealCard: React.FC<MealCardProps> = ({
           {/* Add Food Button */}
           <button
             type="button"
+            onClick={() => setIsReuseOpen(true)}
+            className="w-full py-2.5 rounded-2xl bg-[#060A14] border border-white/[0.08] hover:border-[#84CC16]/40 text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 mb-2"
+            title="Copiar de outro dia ou usar um modelo salvo"
+          >
+            <Repeat className="w-3.5 h-3.5 text-[#A3E635]" />
+            <span>Reaproveitar Refeição</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setIsAddFoodOpen(true)}
             className="w-full py-2.5 rounded-2xl bg-[#060A14] border border-white/[0.08] hover:border-[#84CC16]/40 text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5"
           >
@@ -401,6 +420,16 @@ export const MealCard: React.FC<MealCardProps> = ({
           isOpen
           onClose={() => setIsAddFoodOpen(false)}
           onSelectFood={handleAddFood}
+        />
+      )}
+
+      {/* Reaproveitar refeição: copiar de outro dia ou aplicar modelo salvo */}
+      {isReuseOpen && meal.id && (
+        <MealReuseModal
+          isOpen
+          onClose={() => setIsReuseOpen(false)}
+          meal={meal}
+          onApplied={onReload}
         />
       )}
 

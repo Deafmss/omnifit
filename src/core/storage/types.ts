@@ -169,6 +169,19 @@ export interface DailyIntakeSummary {
 }
 
 /**
+ * Refeição salva pelo usuário para reutilizar depois ("meu café da manhã").
+ * Guarda apenas as porções: as metas de macro vêm da refeição de destino.
+ */
+export interface MealTemplate {
+  id?: number;
+  name: string;
+  portions: MealFoodPortion[];
+  createdAt: string;
+  /** Quantas vezes foi aplicado — usado para ordenar por mais usados. */
+  timesUsed: number;
+}
+
+/**
  * Metadados internos do contêiner do usuário (chave/valor).
  * Usado para saber qual foi o último dia de uso e disparar a virada do dia.
  */

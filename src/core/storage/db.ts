@@ -10,6 +10,7 @@ import {
   DailyThermogenicLog,
   DailyFoodLog,
   DailyIntakeSummary,
+  MealTemplate,
   AppMeta
 } from './types';
 import { calculateWeightEMA } from '../math/adaptiveEngine';
@@ -26,6 +27,7 @@ import {
   templateForFrequency
 } from '../data/workoutTemplates';
 import { generateSmartMealPlan } from '../math/dietOptimizer';
+import { MealFoodPortion } from './types';
 import { todayLocal, currentMonthPrefix, startOfWeekMonday, addDays, toLocalDateString } from '../utils/dateUtils';
 import { pushProfile, pushMealPlans, pushRoutines, pushWeightLog, pushFoodLogs } from '../supabase/cloudSync';
 
@@ -41,6 +43,7 @@ export class OmniFitDatabase extends Dexie {
   checkInLogs!: EntityTable<CheckInLog, 'id'>;
   thermogenicLogs!: EntityTable<DailyThermogenicLog, 'id'>;
   foodLogs!: EntityTable<DailyFoodLog, 'id'>;
+  mealTemplates!: EntityTable<MealTemplate, 'id'>;
   appMeta!: EntityTable<AppMeta, 'key'>;
 
   constructor(dbName: string = 'OmniFitDatabase') {
@@ -67,6 +70,21 @@ export class OmniFitDatabase extends Dexie {
       checkInLogs: '++id, date',
       thermogenicLogs: '++id, date',
       foodLogs: '++id, date, foodId, [date+foodId]',
+      appMeta: 'key'
+    });
+
+    // v4: refeições salvas como template para reutilização.
+    this.version(4).stores({
+      profiles: '++id, isCalibrated, createdAt',
+      mealPlans: '++id, order, name',
+      customFoods: 'id, name, category',
+      routines: '++id, splitCode, name',
+      sessionLogs: '++id, date, completed',
+      weightLogs: '++id, date',
+      checkInLogs: '++id, date',
+      thermogenicLogs: '++id, date',
+      foodLogs: '++id, date, foodId, [date+foodId]',
+      mealTemplates: '++id, name, timesUsed',
       appMeta: 'key'
     });
   }
@@ -491,6 +509,125 @@ export async function ensureDailyRollover(): Promise<boolean> {
 
   await setMeta(LAST_ACTIVE_DATE_KEY, today);
   return needsReset;
+}
+
+// ============================================================================
+// REUTILIZAÇÃO DE REFEIÇÕES
+// ============================================================================
+
+/**
+ * Dias que já têm registro no diário, do mais recente para o mais antigo.
+ * Alimenta a lista de "copiar de um dia anterior".
+ */
+export async function getDatesWithFoodLog(limit: number = 14): Promise<
+  { date: string; itemCount: number; calories: number }[]
+> {
+  const hoje = todayLocal();
+  const logs = await db.foodLogs.toArray();
+
+  const porData = new Map<string, { itemCount: number; calories: number }>();
+  for (const log of logs) {
+    // O dia corrente não entra: copiar de hoje para hoje não faz sentido.
+    if (log.date === hoje) continue;
+
+    const atual = porData.get(log.date) || { itemCount: 0, calories: 0 };
+    atual.itemCount += 1;
+    atual.calories += log.calories;
+    porData.set(log.date, atual);
+  }
+
+  return Array.from(porData.entries())
+    .map(([date, info]) => ({ date, ...info }))
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, limit);
+}
+
+/**
+ * Copia as porções registradas num dia anterior para a refeição informada.
+ * Só traz o que foi consumido naquela refeição (pela ordem), preservando as
+ * gramaturas — é o "comi a mesma coisa de ontem".
+ */
+export async function copyMealFromDate(
+  sourceDate: string,
+  mealOrder: number,
+  targetMealId: number
+): Promise<number> {
+  const origem = (await db.foodLogs.where('date').equals(sourceDate).toArray()).filter(
+    (log) => log.mealOrder === mealOrder
+  );
+
+  if (origem.length === 0) return 0;
+
+  const destino = await db.mealPlans.get(targetMealId);
+  if (!destino) return 0;
+
+  // Não duplica o que já está na refeição: soma as gramas do mesmo alimento.
+  const porcoes = [...destino.portions];
+  for (const log of origem) {
+    const existente = porcoes.find((p) => p.foodId === log.foodId);
+    if (existente) {
+      existente.grams += log.grams;
+    } else {
+      porcoes.push({ foodId: log.foodId, grams: log.grams, consumed: false });
+    }
+  }
+
+  await db.mealPlans.update(targetMealId, { portions: porcoes });
+  return origem.length;
+}
+
+/** Salva as porções de uma refeição como template reutilizável. */
+export async function saveMealAsTemplate(name: string, portions: MealFoodPortion[]): Promise<number> {
+  const limpo = name.trim();
+  if (!limpo || portions.length === 0) {
+    throw new Error('Dê um nome ao modelo e inclua pelo menos um alimento.');
+  }
+
+  const id = await db.mealTemplates.add({
+    name: limpo,
+    // Salva sem o estado de consumo: o template é o conteúdo, não o dia.
+    portions: portions.map((p) => ({ ...p, consumed: false })),
+    createdAt: new Date().toISOString(),
+    timesUsed: 0
+  });
+
+  return typeof id === 'number' ? id : 0;
+}
+
+/** Templates salvos, dos mais usados para os menos. */
+export async function listMealTemplates(): Promise<MealTemplate[]> {
+  return (await db.mealTemplates.toArray()).sort(
+    (a, b) => b.timesUsed - a.timesUsed || b.createdAt.localeCompare(a.createdAt)
+  );
+}
+
+/** Aplica um template na refeição, somando às porções existentes. */
+export async function applyMealTemplate(templateId: number, targetMealId: number): Promise<number> {
+  const [template, destino] = await Promise.all([
+    db.mealTemplates.get(templateId),
+    db.mealPlans.get(targetMealId)
+  ]);
+
+  if (!template || !destino) return 0;
+
+  const porcoes = [...destino.portions];
+  for (const item of template.portions) {
+    const existente = porcoes.find((p) => p.foodId === item.foodId);
+    if (existente) {
+      existente.grams += item.grams;
+    } else {
+      porcoes.push({ ...item, consumed: false });
+    }
+  }
+
+  await db.mealPlans.update(targetMealId, { portions: porcoes });
+  await db.mealTemplates.update(templateId, { timesUsed: template.timesUsed + 1 });
+
+  return template.portions.length;
+}
+
+export async function deleteMealTemplate(templateId: number): Promise<void> {
+  await db.mealTemplates.delete(templateId);
 }
 
 /**
