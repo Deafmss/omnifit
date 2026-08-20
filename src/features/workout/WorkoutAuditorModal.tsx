@@ -44,7 +44,7 @@ export const WorkoutAuditorModal: React.FC<WorkoutAuditorModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title="Auditoria Biomecânica de Volume"
-      subtitle="Baseado no modelo científico de Volume Landmarks (Dr. Mike Israetel)"
+      subtitle="Baseado no modelo de Volume Landmarks (Dr. Mike Israetel). Faixas gerais de referência, não prescrição individual."
     >
       <div className="space-y-4">
         {/* Info Card */}

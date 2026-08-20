@@ -1,8 +1,13 @@
 import { UserProfile, MetabolicStats } from '../storage/types';
 
 /**
- * Calcula a Taxa Metabólica Basal (TMB) com padrão ouro clínico.
- * Utiliza Katch-McArdle quando % de gordura está disponível, ou Mifflin-St Jeor caso contrário.
+ * Estima a Taxa Metabólica Basal (TMB).
+ * Usa Katch-McArdle quando há % de gordura informado (a fórmula parte da massa
+ * magra, então só faz sentido com esse dado); caso contrário, Mifflin-St Jeor.
+ *
+ * O resultado é uma estimativa populacional: a TMB real de cada pessoa pode
+ * ficar acima ou abaixo do valor calculado. Os check-ins adaptativos existem
+ * justamente para corrigir esse desvio com o tempo.
  */
 export function calculateBMR(
   gender: 'male' | 'female',
@@ -23,7 +28,12 @@ export function calculateBMR(
 }
 
 /**
- * Calcula o Gasto Energético Diário Total (TDEE) considerando atividade basal e volume de treino.
+ * Estima o Gasto Energético Diário Total (TDEE) a partir da TMB, somando um
+ * fator de atividade basal e um acréscimo pelo volume de treino.
+ *
+ * O acréscimo por hora de treino é uma aproximação interna do app, não uma
+ * fórmula publicada: serve para diferenciar quem treina 2x de quem treina 6x
+ * por semana, e o valor final é calibrado pelos check-ins.
  */
 export function calculateTDEE(
   bmr: number,
@@ -42,7 +52,9 @@ export function calculateTDEE(
 }
 
 /**
- * Gera os parâmetros metabólicos, calóricos e de macronutrientes com precisão clínica.
+ * Deriva os parâmetros metabólicos, calóricos e de macronutrientes do perfil.
+ * Todos os valores são estimativas de ponto de partida, refinadas pelo ajuste
+ * acumulado dos check-ins.
  */
 export function calculateMetabolicStats(profile: UserProfile): MetabolicStats {
   const { bmr, formulaUsed } = calculateBMR(

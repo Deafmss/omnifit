@@ -190,8 +190,8 @@ export const ThermogenicsConfigModal: React.FC<ThermogenicsConfigModalProps> = (
                   <p className="text-[11px] text-slate-400 font-mono mt-0.5">50ml &bull; ~65mg caf</p>
                 </div>
                 <div className="pt-1 border-t border-white/5 flex items-center justify-between text-[10px] font-mono">
-                  <span className="text-slate-400">Queima:</span>
-                  <span className="text-amber-400 font-bold">+12 kcal</span>
+                  <span className="text-slate-400">Queima est.:</span>
+                  <span className="text-amber-400 font-bold">~+12 kcal</span>
                 </div>
               </div>
 
@@ -217,8 +217,8 @@ export const ThermogenicsConfigModal: React.FC<ThermogenicsConfigModalProps> = (
                   <p className="text-[11px] text-slate-400 font-mono mt-0.5">150ml &bull; ~100mg caf</p>
                 </div>
                 <div className="pt-1 border-t border-white/5 flex items-center justify-between text-[10px] font-mono">
-                  <span className="text-slate-400">Queima:</span>
-                  <span className="text-amber-400 font-bold">+18 kcal</span>
+                  <span className="text-slate-400">Queima est.:</span>
+                  <span className="text-amber-400 font-bold">~+18 kcal</span>
                 </div>
               </div>
 
@@ -242,8 +242,8 @@ export const ThermogenicsConfigModal: React.FC<ThermogenicsConfigModalProps> = (
                   <p className="text-[11px] text-slate-400 font-mono mt-0.5">250ml &bull; ~165mg caf</p>
                 </div>
                 <div className="pt-1 border-t border-white/5 flex items-center justify-between text-[10px] font-mono">
-                  <span className="text-slate-400">Queima:</span>
-                  <span className="text-amber-400 font-bold">+30 kcal</span>
+                  <span className="text-slate-400">Queima est.:</span>
+                  <span className="text-amber-400 font-bold">~+30 kcal</span>
                 </div>
               </div>
 
@@ -314,10 +314,10 @@ export const ThermogenicsConfigModal: React.FC<ThermogenicsConfigModalProps> = (
             <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-950/40 to-slate-900 border border-amber-500/20 space-y-1.5 text-xs">
               <div className="flex items-center gap-2 text-amber-400 font-bold">
                 <Flame className="w-4 h-4 fill-amber-400" />
-                <span>Impacto Termogênico por Xícara</span>
+                <span>Impacto Termogênico Estimado por Xícara</span>
               </div>
               <p className="text-slate-300 leading-relaxed">
-                Cada dose consumida de <strong>{currentCoffeeCaffeine}mg de cafeína</strong> elevará sua taxa metabólica em <strong>+{coffeePreview.metabolicBoostPercentage}%</strong>, queimando aproximadamente <strong className="text-amber-300">+{coffeePreview.burnKcal} kcal passivas</strong> ao longo de {coffeePreview.durationHours} horas.
+                Uma dose de <strong>{currentCoffeeCaffeine}mg de cafeína</strong> tende a elevar sua taxa metabólica em cerca de <strong>+{coffeePreview.metabolicBoostPercentage}%</strong>, o que equivale a uma estimativa de <strong className="text-amber-300">+{coffeePreview.burnKcal} kcal passivas</strong> ao longo de {coffeePreview.durationHours} horas. A resposta à cafeína varia bastante de pessoa para pessoa.
               </p>
             </div>
           </div>
@@ -421,10 +421,10 @@ export const ThermogenicsConfigModal: React.FC<ThermogenicsConfigModalProps> = (
             <div className="p-3.5 rounded-2xl bg-gradient-to-r from-blue-950/40 to-slate-900 border border-blue-500/20 space-y-1.5 text-xs">
               <div className="flex items-center gap-2 text-blue-400 font-bold">
                 <Sparkles className="w-4 h-4 text-blue-400" />
-                <span>Queima Total por Dose de {preDoseGrams || 10}g</span>
+                <span>Queima Estimada por Dose de {preDoseGrams || 10}g</span>
               </div>
               <p className="text-slate-300 leading-relaxed">
-                Esta fórmula gerará um gasto adicional de <strong className="text-blue-300 font-mono">+{preWorkoutPreview.totalThermogenicKcal} kcal</strong> por dose ({preWorkoutPreview.caffeineBurnKcal} kcal pela cafeína + {preWorkoutPreview.taurineSynergyBurnKcal} kcal pela oxidação da taurina).
+                Estimamos um gasto adicional de <strong className="text-blue-300 font-mono">+{preWorkoutPreview.totalThermogenicKcal} kcal</strong> por dose ({preWorkoutPreview.caffeineBurnKcal} kcal atribuídas à cafeína + {preWorkoutPreview.taurineSynergyBurnKcal} kcal à taurina). São valores de referência, não uma medição do seu gasto real.
               </p>
             </div>
           </div>
