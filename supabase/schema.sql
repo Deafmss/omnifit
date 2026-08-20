@@ -170,9 +170,44 @@ create policy "Usuários podem gerenciar apenas seus próprios check-ins"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
+-- 7. Diário Alimentar (o que foi efetivamente consumido, por dia)
+--
+-- Os valores nutricionais são um SNAPSHOT do momento do consumo: o alimento
+-- pode ser editado ou excluído depois, e o histórico precisa continuar
+-- refletindo o que foi comido de fato.
+create table if not exists public.food_logs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade not null,
+  date date not null,
+  food_id text not null,
+  food_name text not null,
+  grams numeric not null,
+  calories integer not null default 0,
+  protein_g numeric not null default 0,
+  carbs_g numeric not null default 0,
+  fat_g numeric not null default 0,
+  fiber_g numeric not null default 0,
+  meal_name text not null,
+  meal_order integer not null default 0,
+  logged_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  -- Uma porção por alimento, por refeição, por dia. Permite upsert idempotente
+  -- em vez de duplicar o registro a cada sincronização.
+  constraint food_logs_unique_entry unique (user_id, date, food_id, meal_order)
+);
+
+-- Habilitar RLS em food_logs
+alter table public.food_logs enable row level security;
+
+create policy "Usuários podem gerenciar apenas seu próprio diário alimentar"
+  on public.food_logs for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
 -- Índices de alta performance
 create index if not exists idx_meal_plans_user on public.meal_plans(user_id);
 create index if not exists idx_workout_routines_user on public.workout_routines(user_id);
 create index if not exists idx_session_logs_user_date on public.workout_session_logs(user_id, date);
 create index if not exists idx_weight_logs_user_date on public.weight_logs(user_id, date);
 create index if not exists idx_check_in_logs_user_date on public.check_in_logs(user_id, date);
+create index if not exists idx_food_logs_user_date on public.food_logs(user_id, date);

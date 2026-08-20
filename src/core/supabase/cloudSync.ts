@@ -5,9 +5,10 @@ import {
   syncRoutinesToCloud,
   syncSessionLogToCloud,
   syncWeightLogToCloud,
-  syncCheckInLogToCloud
+  syncCheckInLogToCloud,
+  syncFoodLogsToCloud
 } from './supabaseClient';
-import { WorkoutSessionLog, WeightLog, CheckInLog } from '../storage/types';
+import { WorkoutSessionLog, WeightLog, CheckInLog, DailyFoodLog } from '../storage/types';
 
 /**
  * Ponte entre o banco local e a nuvem.
@@ -24,7 +25,7 @@ import { WorkoutSessionLog, WeightLog, CheckInLog } from '../storage/types';
  */
 
 /** Id do usuário autenticado na nuvem, ou null se a sincronização não se aplica. */
-async function getCloudUserId(): Promise<string | null> {
+export async function getCloudUserId(): Promise<string | null> {
   if (!supabase) return null;
 
   try {
@@ -91,4 +92,10 @@ export async function pushCheckInLog(log: CheckInLog): Promise<void> {
 /** A sincronização com a nuvem está ativa para o usuário atual? */
 export async function isCloudSyncActive(): Promise<boolean> {
   return (await getCloudUserId()) !== null;
+}
+
+export async function pushFoodLogs(logs: DailyFoodLog[]): Promise<void> {
+  const userId = await getCloudUserId();
+  if (!userId) return;
+  scheduleSync('foodLogs', () => syncFoodLogsToCloud(userId, logs));
 }

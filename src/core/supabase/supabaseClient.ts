@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { UserProfile, MealPlan, WorkoutRoutine, WorkoutSessionLog, WeightLog, CheckInLog } from '../storage/types';
+import { UserProfile, MealPlan, WorkoutRoutine, WorkoutSessionLog, WeightLog, CheckInLog, DailyFoodLog } from '../storage/types';
 
 // As credenciais vêm EXCLUSIVAMENTE das variáveis de ambiente.
 // Nunca reintroduza chaves literais aqui: elas ficam no histórico do git para
@@ -199,5 +199,252 @@ export async function syncCheckInLogToCloud(userId: string, log: CheckInLog): Pr
     if (error) console.warn('Erro ao sincronizar check-in:', error.message);
   } catch (err) {
     console.warn('Falha de rede ao sincronizar check-in:', err);
+  }
+}
+
+/**
+ * Sincroniza o diário alimentar com o Supabase.
+ * Usa upsert pela chave natural (data + alimento + refeição) para ser idempotente:
+ * reenviar o mesmo dia não duplica registros.
+ */
+export async function syncFoodLogsToCloud(userId: string, logs: DailyFoodLog[]): Promise<void> {
+  if (!supabase || logs.length === 0) return;
+
+  try {
+    const payload = logs.map((log) => ({
+      user_id: userId,
+      date: log.date,
+      food_id: log.foodId,
+      food_name: log.foodName,
+      grams: log.grams,
+      calories: log.calories,
+      protein_g: log.protein,
+      carbs_g: log.carbs,
+      fat_g: log.fat,
+      fiber_g: log.fiber,
+      meal_name: log.mealName,
+      meal_order: log.mealOrder,
+      logged_at: log.loggedAt
+    }));
+
+    const { error } = await supabase
+      .from('food_logs')
+      .upsert(payload, { onConflict: 'user_id,date,food_id,meal_order' });
+
+    if (error) console.warn('Erro ao sincronizar diário alimentar:', error.message);
+  } catch (err) {
+    console.warn('Falha de rede ao sincronizar diário alimentar:', err);
+  }
+}
+
+// ============================================================================
+// LEITURA DA NUVEM
+//
+// Sem estas funções a sincronização era só de subida: um backup do qual não se
+// conseguia restaurar nada, e que não servia para trocar de dispositivo.
+//
+// Todas devolvem `null` quando a leitura FALHA (rede, permissão) e um array
+// vazio quando simplesmente não há dados. A diferença importa: o reconciliador
+// não pode confundir "não deu para ler" com "não existe nada lá".
+// ============================================================================
+
+/** Perfil salvo na nuvem, ou null se não houver / falhar. */
+export async function fetchProfileFromCloud(userId: string): Promise<UserProfile | null> {
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error || !data) return null;
+
+    return {
+      name: data.name,
+      age: data.age,
+      gender: data.gender,
+      heightCm: Number(data.height_cm),
+      weightKg: Number(data.weight_kg),
+      bodyFatPercentage: data.body_fat_percentage ?? undefined,
+      experienceLevel: data.experience_level,
+      goal: data.goal,
+      trainingDaysPerWeek: data.training_days_per_week,
+      sessionDurationMin: data.session_duration_min,
+      dietMode: data.diet_mode,
+      mealsPerDay: data.meals_per_day,
+      isCalibrated: data.is_calibrated,
+      preWorkoutFormula: data.pre_workout_formula ?? undefined,
+      coffeeConfig: data.coffee_config ?? undefined,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at
+    };
+  } catch (err) {
+    console.warn('Falha ao ler perfil da nuvem:', err);
+    return null;
+  }
+}
+
+export async function fetchMealPlansFromCloud(userId: string): Promise<MealPlan[] | null> {
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('meal_plans')
+      .select('*')
+      .eq('user_id', userId)
+      .order('order_index', { ascending: true });
+
+    if (error || !data) return null;
+
+    return data.map((row) => ({
+      name: row.name,
+      order: row.order_index,
+      timeLabel: row.suggested_time ?? undefined,
+      targetCalories: row.target_calories,
+      targetProtein: Number(row.target_protein_g),
+      targetCarbs: Number(row.target_carbs_g),
+      targetFat: Number(row.target_fat_g),
+      portions: Array.isArray(row.items) ? row.items : []
+    }));
+  } catch (err) {
+    console.warn('Falha ao ler refeições da nuvem:', err);
+    return null;
+  }
+}
+
+export async function fetchRoutinesFromCloud(userId: string): Promise<WorkoutRoutine[] | null> {
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('workout_routines')
+      .select('*')
+      .eq('user_id', userId)
+      .order('day_of_week', { ascending: true });
+
+    if (error || !data) return null;
+
+    return data.map((row) => ({
+      name: row.name,
+      splitCode: row.split_code,
+      dayOfWeek: row.day_of_week,
+      targetMuscles: Array.isArray(row.target_muscles) ? row.target_muscles : [],
+      exercises: Array.isArray(row.exercises) ? row.exercises : []
+    }));
+  } catch (err) {
+    console.warn('Falha ao ler fichas da nuvem:', err);
+    return null;
+  }
+}
+
+export async function fetchWeightLogsFromCloud(userId: string): Promise<WeightLog[] | null> {
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('weight_logs')
+      .select('*')
+      .eq('user_id', userId)
+      .order('date', { ascending: true });
+
+    if (error || !data) return null;
+
+    return data.map((row) => ({
+      date: row.date,
+      weightKg: Number(row.weight_kg),
+      emaWeightKg: row.ema_weight_kg ? Number(row.ema_weight_kg) : undefined,
+      bodyFatPercentage: row.body_fat_percentage ? Number(row.body_fat_percentage) : undefined
+    }));
+  } catch (err) {
+    console.warn('Falha ao ler pesagens da nuvem:', err);
+    return null;
+  }
+}
+
+export async function fetchSessionLogsFromCloud(userId: string): Promise<WorkoutSessionLog[] | null> {
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('workout_session_logs')
+      .select('*')
+      .eq('user_id', userId)
+      .order('date', { ascending: true });
+
+    if (error || !data) return null;
+
+    return data.map((row) => ({
+      name: row.name,
+      date: row.date,
+      durationMinutes: row.duration_minutes,
+      caloriesBurnedEstimate: row.calories_burned_estimate,
+      totalVolumeLoadKg: Number(row.total_volume_load_kg),
+      completed: row.completed,
+      exerciseLogs: Array.isArray(row.exercise_logs) ? row.exercise_logs : []
+    }));
+  } catch (err) {
+    console.warn('Falha ao ler treinos da nuvem:', err);
+    return null;
+  }
+}
+
+export async function fetchCheckInLogsFromCloud(userId: string): Promise<CheckInLog[] | null> {
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('check_in_logs')
+      .select('*')
+      .eq('user_id', userId)
+      .order('date', { ascending: true });
+
+    if (error || !data) return null;
+
+    return data.map((row) => ({
+      date: row.date,
+      weightKg: Number(row.weekly_avg_weight_kg),
+      hungerRating: row.hunger_level,
+      energyRating: row.energy_level,
+      adherencePercentage: row.adherence_score,
+      caloricAdjustmentSuggestedKcal: row.recommended_calorie_delta,
+      notes: row.diagnosis_text || ''
+    }));
+  } catch (err) {
+    console.warn('Falha ao ler check-ins da nuvem:', err);
+    return null;
+  }
+}
+
+export async function fetchFoodLogsFromCloud(userId: string): Promise<DailyFoodLog[] | null> {
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('food_logs')
+      .select('*')
+      .eq('user_id', userId)
+      .order('date', { ascending: true });
+
+    if (error || !data) return null;
+
+    return data.map((row) => ({
+      date: row.date,
+      foodId: row.food_id,
+      foodName: row.food_name,
+      grams: Number(row.grams),
+      calories: row.calories,
+      protein: Number(row.protein_g),
+      carbs: Number(row.carbs_g),
+      fat: Number(row.fat_g),
+      fiber: Number(row.fiber_g),
+      mealName: row.meal_name,
+      mealOrder: row.meal_order,
+      loggedAt: row.logged_at
+    }));
+  } catch (err) {
+    console.warn('Falha ao ler diário alimentar da nuvem:', err);
+    return null;
   }
 }
