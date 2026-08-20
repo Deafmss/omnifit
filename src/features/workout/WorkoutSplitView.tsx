@@ -201,7 +201,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
   };
 
   return (
-    <div className="space-y-4 pb-24 max-w-lg mx-auto p-4">
+    <div className="space-y-4 pb-28 max-w-lg mx-auto p-3.5 sm:p-4">
       {errorMsg && (
         <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-semibold">
           {errorMsg}
@@ -231,8 +231,8 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
       </div>
 
       {/* Weekly Schedule Days Bar (Segunda a Domingo) */}
-      <div className="p-1.5 rounded-3xl bg-[#090F1E] border border-white/[0.08] shadow-lg">
-        <div className="grid grid-cols-7 gap-1">
+      <div className="p-1 sm:p-1.5 rounded-2xl sm:rounded-3xl bg-[#090F1E] border border-white/[0.08] shadow-lg">
+        <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
           {DAYS_OF_WEEK.map((d) => {
             const isToday = d.dayIndex === todayDayIndex;
             const isSelected = d.dayIndex === selectedDay;
@@ -246,7 +246,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
                   setSelectedDay(d.dayIndex);
                   setIsEditingTitle(false);
                 }}
-                className={`py-2 px-1 rounded-2xl flex flex-col items-center justify-between transition-colors relative btn-tactile ${
+                className={`py-2 sm:py-2.5 px-0.5 sm:px-1 rounded-xl sm:rounded-2xl flex flex-col items-center justify-between transition-colors relative btn-tactile ${
                   isSelected
                     ? 'btn-lime text-slate-950 shadow-md font-black'
                     : isDayCompleted
@@ -256,7 +256,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
                     : 'bg-[#060A14] border border-white/[0.04] text-slate-400 hover:text-white'
                 }`}
               >
-                <span className="text-[10px] font-bold tracking-wider font-mono">
+                <span className="text-[9px] sm:text-[10px] font-bold tracking-wider font-mono">
                   {d.short}
                 </span>
 
@@ -275,7 +275,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
 
                 {/* Today Badge */}
                 {isToday && !isSelected && !isDayCompleted && (
-                  <span className="absolute -top-1 px-1 rounded-full bg-[#84CC16] text-slate-950 text-[7px] font-black uppercase font-mono">
+                  <span className="absolute -top-1.5 px-1 rounded-full bg-[#84CC16] text-slate-950 text-[6.5px] sm:text-[7px] font-black uppercase font-mono shadow-xs">
                     Hoje
                   </span>
                 )}
@@ -384,20 +384,20 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
             )}
 
             {/* Metric Pills (UI Kit Style) */}
-            <div className="grid grid-cols-3 gap-2 py-1">
-              <div className="p-2.5 rounded-2xl bg-[#060A14] border border-white/[0.06] text-center">
-                <span className="text-[10px] text-slate-400 block font-mono">Exercícios</span>
-                <span className="text-sm font-black text-white font-mono">{currentRoutine.exercises.length}</span>
+            <div className="grid grid-cols-3 gap-1.5 sm:gap-2 py-1">
+              <div className="p-2 sm:p-2.5 rounded-2xl bg-[#060A14] border border-white/[0.06] text-center">
+                <span className="text-[9px] sm:text-[10px] text-slate-400 block font-mono">Exercícios</span>
+                <span className="text-xs sm:text-sm font-black text-white font-mono">{currentRoutine.exercises.length}</span>
               </div>
 
-              <div className="p-2.5 rounded-2xl bg-[#060A14] border border-white/[0.06] text-center">
-                <span className="text-[10px] text-slate-400 block font-mono">Duração</span>
-                <span className="text-sm font-black text-white font-mono">~45 min</span>
+              <div className="p-2 sm:p-2.5 rounded-2xl bg-[#060A14] border border-white/[0.06] text-center">
+                <span className="text-[9px] sm:text-[10px] text-slate-400 block font-mono">Duração</span>
+                <span className="text-xs sm:text-sm font-black text-white font-mono">~45 min</span>
               </div>
 
-              <div className="p-2.5 rounded-2xl bg-[#060A14] border border-white/[0.06] text-center">
-                <span className="text-[10px] text-slate-400 block font-mono">Calorias</span>
-                <span className="text-sm font-black text-[#A3E635] font-mono">~{currentRoutine.exercises.length * 45} kcal</span>
+              <div className="p-2 sm:p-2.5 rounded-2xl bg-[#060A14] border border-white/[0.06] text-center">
+                <span className="text-[9px] sm:text-[10px] text-slate-400 block font-mono">Calorias</span>
+                <span className="text-xs sm:text-sm font-black text-[#A3E635] font-mono">~{currentRoutine.exercises.length * 45} kcal</span>
               </div>
             </div>
 
@@ -426,7 +426,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
               <button
                 onClick={() => setActiveRoutineToStart(currentRoutine)}
                 disabled={currentRoutine.exercises.length === 0}
-                className="w-full py-4 px-4 rounded-2xl btn-lime text-slate-950 font-display font-black text-sm uppercase tracking-wider shadow-lg shadow-lime-500/20 hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full py-3.5 sm:py-4 px-4 rounded-2xl btn-lime text-slate-950 font-display font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg shadow-lime-500/20 hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Play className="w-4 h-4 fill-current" />
                 <span>
@@ -438,13 +438,13 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
 
           {/* Exercises Header */}
           <div className="flex items-center justify-between px-1">
-            <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest font-mono">
+            <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-400 uppercase tracking-widest font-mono">
               Exercícios de {currentDayInfo.full}
             </span>
 
             <button
               onClick={() => setIsAddExerciseOpen(true)}
-              className="px-3 py-1.5 rounded-xl bg-[#84CC16]/15 border border-[#84CC16]/30 text-[#A3E635] hover:bg-[#84CC16]/25 text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile font-mono"
+              className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-[#84CC16]/15 border border-[#84CC16]/30 text-[#A3E635] hover:bg-[#84CC16]/25 text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile font-mono"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Adicionar Exercício</span>
@@ -452,7 +452,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
           </div>
 
           {/* Exercises List */}
-          <div className="space-y-2.5">
+          <div className="space-y-2 sm:space-y-2.5">
             {currentRoutine.exercises.length === 0 ? (
               <div 
                 onClick={() => setIsAddExerciseOpen(true)}
@@ -470,45 +470,45 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
                 return (
                   <div
                     key={`${item.exerciseId}-${idx}`}
-                    className="p-3.5 rounded-3xl bg-[#090F1E] border border-white/[0.08] shadow-sm flex items-center justify-between gap-3 hover:border-white/[0.14] transition-all group"
+                    className="p-3 sm:p-3.5 rounded-2xl sm:rounded-3xl bg-[#090F1E] border border-white/[0.08] shadow-sm flex items-center justify-between gap-2.5 sm:gap-3 hover:border-white/[0.14] transition-all group"
                   >
-                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                    <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0 flex-1">
                       {/* Exercise Thumbnail Icon */}
-                      <div className="w-11 h-11 rounded-2xl bg-[#060A14] border border-white/[0.08] flex items-center justify-center text-xs font-black text-slate-300 font-mono shrink-0 shadow-inner">
-                        <Dumbbell className="w-5 h-5 text-[#A3E635]" />
+                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-[#060A14] border border-white/[0.08] flex items-center justify-center text-xs font-black text-slate-300 font-mono shrink-0 shadow-inner">
+                        <Dumbbell className="w-4 h-4 sm:w-5 sm:h-5 text-[#A3E635]" />
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        <h4 className="font-extrabold text-sm text-white truncate tracking-tight">
+                        <h4 className="font-extrabold text-xs sm:text-sm text-white truncate tracking-tight">
                           {exercise.name}
                         </h4>
                         
-                        <div className="flex items-center gap-2 text-xs text-slate-400 font-mono mt-0.5">
+                        <div className="flex items-center gap-1.5 sm:gap-2 text-[10px] sm:text-xs text-slate-400 font-mono mt-0.5">
                           <span className="font-bold text-slate-200">
-                            {item.targetSets} Séries &times; {item.minReps}-{item.maxReps} Reps
+                            {item.targetSets}s &times; {item.minReps}-{item.maxReps} reps
                           </span>
                           <span>&bull;</span>
-                          <span className="text-slate-500">{item.restSeconds}s descanso</span>
+                          <span className="text-slate-500">{item.restSeconds}s desc</span>
                         </div>
                       </div>
                     </div>
 
                     {/* Quick Stepper & Remove */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div className="flex items-center gap-1 bg-[#060A14] px-2 py-1 rounded-xl border border-white/5">
+                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                      <div className="flex items-center gap-0.5 sm:gap-1 bg-[#060A14] px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl border border-white/5">
                         <button
                           type="button"
                           onClick={() => handleUpdateExerciseConfig(idx, -1, 0, 0)}
-                          className="text-slate-400 hover:text-white font-bold px-1"
+                          className="text-slate-400 hover:text-white font-bold px-1 text-xs"
                           title="Diminuir séries"
                         >
                           -
                         </button>
-                        <span className="text-[#A3E635] font-bold px-1 text-xs font-mono">{item.targetSets}s</span>
+                        <span className="text-[#A3E635] font-bold px-0.5 text-[11px] sm:text-xs font-mono">{item.targetSets}s</span>
                         <button
                           type="button"
                           onClick={() => handleUpdateExerciseConfig(idx, 1, 0, 0)}
-                          className="text-slate-400 hover:text-white font-bold px-1"
+                          className="text-slate-400 hover:text-white font-bold px-1 text-xs"
                           title="Aumentar séries"
                         >
                           +
@@ -517,7 +517,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
 
                       <button
                         onClick={() => handleRemoveExercise(idx)}
-                        className="p-2 rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all btn-tactile"
+                        className="p-1.5 rounded-lg sm:rounded-xl text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-all btn-tactile"
                         title="Remover Exercício"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
