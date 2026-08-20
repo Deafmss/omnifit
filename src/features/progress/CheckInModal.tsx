@@ -8,9 +8,7 @@ import {
 import { UserProfile, WeightLog, MetabolicStats, CheckInLog } from '../../core/storage/types';
 import { evaluateAdaptiveMetabolism, AdaptiveEvaluationResult } from '../../core/math/adaptiveEngine';
 import { calculateMetabolicStats } from '../../core/math/metabolism';
-import { logWeightEntry, db, saveProfile, ensureFoodDatabaseReady } from '../../core/storage/db';
-import { calculatePortionsTotal } from '../../core/math/macroSolver';
-import { FOOD_DATABASE_MAP } from '../../core/data/tacoDatabase';
+import { db, logWeightEntry, saveProfile, ensureFoodDatabaseReady, calculateDietAdherence } from '../../core/storage/db';
 import { todayLocal, daysBetween } from '../../core/utils/dateUtils';
 import { pushCheckInLog } from '../../core/supabase/cloudSync';
 import { Modal } from '../../components/ui/Modal';
@@ -85,6 +83,17 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
    */
   const [estimatedDailyIntake, setEstimatedDailyIntake] = useState<number>(stats.targetCalories);
 
+  /**
+   * Aderência REAL, calculada a partir do diário alimentar dos últimos 14 dias.
+   * Antes o usuário arrastava um slider chutando a própria aderência — e esse
+   * chute alimentava diretamente a decisão do motor adaptativo.
+   */
+  const [measuredAdherence, setMeasuredAdherence] = useState<{
+    adherencePercent: number;
+    daysLogged: number;
+    averageCalories: number;
+  } | null>(null);
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -92,18 +101,18 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
     (async () => {
       try {
         await ensureFoodDatabaseReady();
-        const plans = await db.mealPlans.toArray();
-        const consumed = plans.reduce((acc, plan) => {
-          const totals = calculatePortionsTotal(
-            plan.portions.filter((p) => p.consumed),
-            FOOD_DATABASE_MAP
-          );
-          return acc + totals.calories;
-        }, 0);
-
+        const measured = await calculateDietAdherence(stats.targetCalories, 14);
         if (cancelled) return;
-        // Se nada foi marcado hoje, o alvo planejado é a melhor estimativa disponível.
-        setEstimatedDailyIntake(consumed > 0 ? consumed : stats.targetCalories);
+
+        setMeasuredAdherence(measured);
+
+        if (measured.daysLogged > 0) {
+          setEstimatedDailyIntake(measured.averageCalories);
+          setAdherencePercentage(measured.adherencePercent);
+        } else {
+          // Sem diário ainda: mantém o alvo como estimativa e o slider manual.
+          setEstimatedDailyIntake(stats.targetCalories);
+        }
       } catch {
         if (!cancelled) setEstimatedDailyIntake(stats.targetCalories);
       }
@@ -304,25 +313,48 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
               </div>
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-bold text-slate-300 uppercase tracking-wider font-mono">
-                  Adesão à Dieta na Semana:
-                </label>
-                <span className="text-xs font-mono font-bold text-[#A3E635]">
-                  {adherencePercentage}%
-                </span>
+            {measuredAdherence && measuredAdherence.daysLogged > 0 ? (
+              <div className="p-3 rounded-2xl bg-[#060A14] border border-[#84CC16]/25 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-300 uppercase tracking-wider font-mono">
+                    Adesão medida
+                  </span>
+                  <span className="text-sm font-mono font-black text-[#A3E635]">
+                    {measuredAdherence.adherencePercent}%
+                  </span>
+                </div>
+                <p className="text-[10px] font-mono text-slate-400 leading-snug">
+                  Calculada do seu diário alimentar: {measuredAdherence.daysLogged}{' '}
+                  {measuredAdherence.daysLogged === 1 ? 'dia registrado' : 'dias registrados'}, média de{' '}
+                  <strong className="text-slate-200">{measuredAdherence.averageCalories} kcal</strong> por dia
+                  contra a meta de {stats.targetCalories} kcal.
+                </p>
               </div>
-              <input
-                type="range"
-                min={50}
-                max={100}
-                step={5}
-                value={adherencePercentage}
-                onChange={(e) => setAdherencePercentage(Number(e.target.value))}
-                className="w-full accent-[#84CC16]"
-              />
-            </div>
+            ) : (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-300 uppercase tracking-wider font-mono">
+                    Adesão à dieta na semana:
+                  </label>
+                  <span className="text-xs font-mono font-bold text-[#A3E635]">
+                    {adherencePercentage}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={50}
+                  max={100}
+                  step={5}
+                  value={adherencePercentage}
+                  onChange={(e) => setAdherencePercentage(Number(e.target.value))}
+                  className="w-full accent-[#84CC16]"
+                />
+                <p className="text-[10px] font-mono text-slate-500">
+                  Marque os alimentos consumidos na aba Dieta para que este valor passe a ser medido
+                  automaticamente.
+                </p>
+              </div>
+            )}
 
             <button
               onClick={handleEvaluate}

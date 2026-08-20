@@ -32,6 +32,11 @@ export const FoodPickerModal: React.FC<FoodPickerModalProps> = ({
   const [isSearchingOnline, setIsSearchingOnline] = useState(false);
   const [hasSearchedOnline, setHasSearchedOnline] = useState(false);
 
+  const loadAllFoods = async () => {
+    const list = await getAllFoods();
+    setFoods(list);
+  };
+
   useEffect(() => {
     if (isOpen) {
       loadAllFoods();
@@ -43,11 +48,6 @@ export const FoodPickerModal: React.FC<FoodPickerModalProps> = ({
       setHasSearchedOnline(false);
     }
   }, [isOpen]);
-
-  const loadAllFoods = async () => {
-    const list = await getAllFoods();
-    setFoods(list);
-  };
 
   const handleFoodCreated = async (newFood: FoodItem) => {
     await loadAllFoods();

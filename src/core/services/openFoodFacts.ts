@@ -46,7 +46,7 @@ function parseServingInfo(servingStr?: string, servingQty?: string | number): { 
 
   if (raw.includes('fatia')) servingUnit = 'fatia(s)';
   // 'un' como substring solta casava em "punhado", "junta", "atum"...
-  else if (/unidades?|unid|un/.test(raw)) servingUnit = 'unidade(s)';
+  else if (/\bunidades?\b|\bunid\b|\bun\b/.test(raw)) servingUnit = 'unidade(s)';
   else if (raw.includes('scoop') || raw.includes('dosador')) servingUnit = 'scoop(s)';
   else if (raw.includes('colher')) servingUnit = 'colher(es) de sopa';
   else if (raw.includes('concha')) servingUnit = 'concha(s)';

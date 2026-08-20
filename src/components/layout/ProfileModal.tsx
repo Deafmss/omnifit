@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   RotateCcw,
   ShieldAlert,
   LogOut,
-  Smartphone
+  Smartphone,
+  Download,
+  Upload,
+  CloudDownload
 } from 'lucide-react';
 import { UserProfile, MetabolicStats } from '../../core/storage/types';
 import { UserAccount } from '../../core/auth/authService';
@@ -16,6 +19,8 @@ import {
   showInstallPrompt
 } from '../../core/pwa/installPrompt';
 import { isCloudSyncActive } from '../../core/supabase/cloudSync';
+import { downloadUserDataBackup, importUserData } from '../../core/backup/dataBackup';
+import { pullFromCloud } from '../../core/storage/cloudRestore';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -25,6 +30,8 @@ interface ProfileModalProps {
   account?: UserAccount | null;
   onReOnboard: () => void;
   onLogout: () => void;
+  /** Chamado após restaurar dados, para a tela recarregar o perfil novo. */
+  onDataRestored?: () => void;
 }
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
@@ -34,10 +41,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   stats,
   account,
   onReOnboard,
-  onLogout
+  onLogout,
+  onDataRestored
 }) => {
   const [installMsg, setInstallMsg] = useState<string | null>(null);
   const [cloudSyncOn, setCloudSyncOn] = useState(false);
+  const [backupMsg, setBackupMsg] = useState<string | null>(null);
+  const [backupError, setBackupError] = useState<string | null>(null);
+  const [isCloudRestoring, setIsCloudRestoring] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Informa se os dados estão sendo espelhados na nuvem: só acontece com login
   // pelo Google, já que as políticas do servidor exigem sessão autenticada.
@@ -105,6 +118,87 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     }
   };
 
+  const handleExportBackup = async () => {
+    setBackupError(null);
+    setBackupMsg(null);
+
+    try {
+      const fileName = await downloadUserDataBackup();
+      setBackupMsg(`Backup salvo como "${fileName}". Guarde este arquivo fora do celular.`);
+    } catch (err) {
+      console.error('Erro ao exportar backup:', err);
+      setBackupError('Não foi possível gerar o arquivo de backup. Tente novamente.');
+    }
+  };
+
+  /**
+   * Baixa os dados da nuvem para este aparelho. Em 'replace' o servidor vence;
+   * é o caminho para quem trocou de celular ou perdeu os dados locais.
+   */
+  const handleCloudRestore = async () => {
+    setBackupError(null);
+    setBackupMsg(null);
+
+    if (
+      !confirm(
+        'Isto vai substituir seu perfil, cardápio e fichas de treino pelos que estão salvos na nuvem. ' +
+        'Pesagens, treinos e diário alimentar serão somados ao histórico local, sem apagar nada. Continuar?'
+      )
+    ) {
+      return;
+    }
+
+    setIsCloudRestoring(true);
+    try {
+      const result = await pullFromCloud('replace');
+      setBackupMsg(result.resumo);
+      if (result.perfilRestaurado) {
+        onDataRestored?.();
+      }
+    } catch (err) {
+      console.error('Erro ao restaurar da nuvem:', err);
+      setBackupError('Não foi possível restaurar da nuvem. Verifique sua conexão e tente novamente.');
+    } finally {
+      setIsCloudRestoring(false);
+    }
+  };
+
+  const handleImportBackup = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    // O input é reaproveitado: sem zerar o valor, escolher o MESMO arquivo de
+    // novo não dispara outro onChange.
+    event.target.value = '';
+    if (!file) return;
+
+    if (
+      !confirm(
+        `Restaurar "${file.name}" SUBSTITUI todos os dados deste dispositivo: perfil, cardápio, fichas de treino, pesagens e histórico. O que existe hoje será sobrescrito e não poderá ser recuperado. Deseja continuar?`
+      )
+    ) {
+      return;
+    }
+
+    setBackupError(null);
+    setBackupMsg(null);
+    setIsRestoring(true);
+
+    try {
+      await importUserData(await file.text(), 'replace');
+      // A base de alimentos e o estado das telas vivem em memória; recarregar é
+      // a única forma segura de refletir o banco recém-restaurado.
+      window.location.reload();
+    } catch (err) {
+      console.error('Erro ao importar backup:', err);
+      // As mensagens de validação já são escritas para o usuário final.
+      setBackupError(
+        err instanceof Error ? err.message : 'Não foi possível restaurar o backup.'
+      );
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
   const getGoalName = () => {
     switch (profile.goal) {
       case 'recomposition':
@@ -123,7 +217,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title="Perfil & Fórmulas Metabólicas"
-      subtitle={`Parâmetros científicos calibrados para ${profile.name}`}
+      subtitle={`Parâmetros estimados e calibrados para ${profile.name}`}
     >
       <div className="space-y-4">
         {/* Account Info & Logout */}
@@ -256,8 +350,71 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           </p>
         </div>
 
+        {/* Backup & Restore (local-first: sem isto, limpar o navegador apaga tudo) */}
+        <div className="p-4 rounded-2xl bg-slate-900 border border-white/10 space-y-2.5 text-xs">
+          <div className="flex items-center justify-between border-b border-white/5 pb-2">
+            <span className="font-bold text-white uppercase tracking-wider">Backup e Restauração</span>
+            <span className="text-[10px] font-mono text-slate-400">Arquivo .json</span>
+          </div>
+
+          <p className="text-[10px] text-slate-400 leading-snug">
+            Seus dados ficam apenas neste aparelho. Exporte um arquivo de vez em quando: limpar os
+            dados do navegador apaga todo o histórico sem volta.
+          </p>
+
+          <div className="grid grid-cols-2 gap-2 pt-0.5">
+            <button
+              type="button"
+              onClick={handleExportBackup}
+              className="py-2.5 rounded-2xl bg-[#060A14] hover:bg-[#060A14]/80 text-[#A3E635] border border-[#84CC16]/40 font-bold text-xs transition-all flex items-center justify-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              <span>Exportar</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isRestoring}
+              className="py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 font-bold text-xs transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <Upload className="w-4 h-4" />
+              <span>{isRestoring ? 'Restaurando...' : 'Restaurar'}</span>
+            </button>
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={handleImportBackup}
+            className="hidden"
+          />
+
+          {backupMsg && (
+            <p className="text-[10px] font-mono text-[#A3E635] leading-snug">{backupMsg}</p>
+          )}
+
+          {backupError && (
+            <p className="text-[10px] font-mono text-red-400 leading-snug">{backupError}</p>
+          )}
+        </div>
+
         {/* Re-calibrate / Reset Actions */}
         <div className="space-y-2 pt-2">
+          {cloudSyncOn && (
+            <button
+              type="button"
+              onClick={handleCloudRestore}
+              disabled={isCloudRestoring}
+              className="w-full py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10 font-bold text-xs transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              title="Traz para este aparelho os dados salvos na sua conta Google"
+            >
+              <CloudDownload className="w-4 h-4" />
+              <span>{isCloudRestoring ? 'Restaurando da nuvem...' : 'Restaurar da nuvem'}</span>
+            </button>
+          )}
+
           <div className="p-3 rounded-2xl bg-[#060A14] border border-white/[0.06] flex items-center justify-between text-[11px] font-mono">
             <span className="text-slate-400">Backup na nuvem</span>
             <span className={cloudSyncOn ? 'text-[#A3E635] font-bold' : 'text-slate-500 font-bold'}>

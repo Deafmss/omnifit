@@ -4,6 +4,7 @@ import { getActiveProfile, switchUserDb } from './core/storage/db';
 import { calculateMetabolicStats } from './core/math/metabolism';
 import { getActiveAccount, logout, processOAuthUser, UserAccount } from './core/auth/authService';
 import { supabase } from './core/supabase/supabaseClient';
+import { pullIfLocalEmpty } from './core/storage/cloudRestore';
 import { Header } from './components/layout/Header';
 import { BottomNav } from './components/layout/BottomNav';
 import { ProfileModal } from './components/layout/ProfileModal';
@@ -60,6 +61,19 @@ export const App: React.FC = () => {
     activeAccountIdRef.current = acc.id;
     setAccount(acc);
     switchUserDb(acc.id);
+
+    // Aparelho novo com dados na nuvem: restaura antes de carregar a tela,
+    // senão o usuário cairia no onboarding como se fosse a primeira vez.
+    // Só age quando o contêiner local está vazio.
+    try {
+      const restored = await pullIfLocalEmpty();
+      if (restored && restored.perfilRestaurado) {
+        console.info('[OmniFit]', restored.resumo);
+      }
+    } catch (err) {
+      console.warn('Restauração da nuvem indisponível:', err);
+    }
+
     await loadUserData(acc);
   };
 
@@ -322,6 +336,10 @@ export const App: React.FC = () => {
           setIsOnboardingOpen(true);
         }}
         onLogout={handleLogout}
+        onDataRestored={() => {
+          // Restauração troca o perfil no banco: recarrega para a tela refletir.
+          void loadUserData(account);
+        }}
       />
 
       {/* PWA Floating Install Prompt */}

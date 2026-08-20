@@ -63,8 +63,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated, initial
       // A troca do contêiner fica a cargo do App (activateAccount), para não
       // fechar e reabrir a conexão duas vezes em sequência.
       onAuthenticated(account);
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Erro ao fazer login. Verifique suas credenciais.');
+    } catch (err) {
+      setErrorMsg((err instanceof Error && err.message) || 'Erro ao fazer login. Verifique suas credenciais.');
     } finally {
       setLoading(false);
     }
@@ -78,8 +78,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated, initial
     try {
       const account = await signUp(name, email, password);
       onAuthenticated(account);
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Erro ao criar conta.');
+    } catch (err) {
+      setErrorMsg((err instanceof Error && err.message) || 'Erro ao criar conta.');
     } finally {
       setLoading(false);
     }
@@ -92,8 +92,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated, initial
       await signInWithGoogle();
       // Em caso de sucesso o navegador é redirecionado. Se ele voltar para cá
       // (popup bloqueado, botão "voltar"), o finally destrava a interface.
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Erro ao iniciar autenticação com o Google.');
+    } catch (err) {
+      setErrorMsg((err instanceof Error && err.message) || 'Erro ao iniciar autenticação com o Google.');
     } finally {
       setLoading(false);
     }
@@ -347,7 +347,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated, initial
             {/* Privacy & Container Notice */}
             <div className="p-3 rounded-2xl bg-[#060A14] border border-white/[0.04] flex items-center gap-2 text-[10px] text-slate-400 font-mono">
               <ShieldCheck className="w-4 h-4 text-[#A3E635] shrink-0" />
-              <span>Contêiner de dados 100% isolado e criptografado localmente no dispositivo.</span>
+              <span>Seus dados ficam somente neste aparelho, em um contêiner separado por conta. A senha não é guardada: fica protegida por derivação de chave (PBKDF2).</span>
             </div>
 
             {/* Action Submit Button */}

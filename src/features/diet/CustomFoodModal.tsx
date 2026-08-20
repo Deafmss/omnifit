@@ -129,7 +129,7 @@ export const CustomFoodModal: React.FC<CustomFoodModalProps> = ({
             </label>
             <select
               value={category}
-              onChange={(e) => setCategory(e.target.value as any)}
+              onChange={(e) => setCategory(e.target.value as FoodItem['category'])}
               className="w-full px-3 py-2.5 bg-slate-900 border border-white/10 rounded-xl text-white text-xs font-medium focus:outline-none focus:border-blue-500"
             >
               <option value="protein">Proteína / Carne / Ovo</option>
