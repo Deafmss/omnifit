@@ -15,16 +15,38 @@ import { AuthScreen } from './features/auth/AuthScreen';
 import { PWAInstallPrompt } from './components/layout/PWAInstallPrompt';
 
 const TABS: ('diet' | 'workout' | 'progress')[] = ['diet', 'workout', 'progress'];
+const ACTIVE_TAB_KEY = 'omnifit_active_tab';
+
+const getInitialTab = (): 'diet' | 'workout' | 'progress' => {
+  try {
+    const saved = localStorage.getItem(ACTIVE_TAB_KEY);
+    if (saved === 'diet' || saved === 'workout' || saved === 'progress') {
+      return saved;
+    }
+  } catch {
+    // ignore
+  }
+  return 'diet';
+};
 
 export const App: React.FC = () => {
   const [account, setAccount] = useState<UserAccount | null>(null);
   const [profile, setProfile] = useState<UserProfile | undefined>(undefined);
   const [stats, setStats] = useState<MetabolicStats | undefined>(undefined);
   const [loading, setLoading] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'diet' | 'workout' | 'progress'>('diet');
+  const [activeTab, setActiveTabState] = useState<'diet' | 'workout' | 'progress'>(getInitialTab);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string | null>(null);
+
+  const setActiveTab = (tab: 'diet' | 'workout' | 'progress') => {
+    setActiveTabState(tab);
+    try {
+      localStorage.setItem(ACTIVE_TAB_KEY, tab);
+    } catch {
+      // ignore
+    }
+  };
 
   // Espelha a conta ativa para o listener de OAuth, que roda fora do ciclo de render.
   const activeAccountIdRef = useRef<string | null>(null);
