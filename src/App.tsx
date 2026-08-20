@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, MetabolicStats } from './core/storage/types';
 import { getActiveProfile, switchUserDb } from './core/storage/db';
 import { calculateMetabolicStats } from './core/math/metabolism';
@@ -22,38 +22,53 @@ export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'diet' | 'workout' | 'progress'>('diet');
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // Espelha a conta ativa para o listener de OAuth, que roda fora do ciclo de render.
+  const activeAccountIdRef = useRef<string | null>(null);
+
+  const activateAccount = async (acc: UserAccount) => {
+    activeAccountIdRef.current = acc.id;
+    setAccount(acc);
+    switchUserDb(acc.id);
+    await loadUserData(acc);
+  };
 
   const initAuthAndData = async () => {
     try {
       setLoading(true);
 
-      // 1. Verifica se há uma sessão ativa do Supabase (ex: Google OAuth redirect)
+      // 1. A escolha explícita do usuário vem primeiro. Se ele selecionou uma
+      //    conta local, ela tem prioridade sobre qualquer sessão de nuvem —
+      //    caso contrário uma sessão Google residual sequestraria o login local.
+      const activeAcc = await getActiveAccount();
+      if (activeAcc) {
+        await activateAccount(activeAcc);
+        return;
+      }
+
+      // 2. Sem conta local ativa, tenta restaurar a sessão do Supabase
+      //    (é o caminho de volta do redirect do Google).
       if (supabase) {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           const oauthAccount = await processOAuthUser(session.user);
-          setAccount(oauthAccount);
-          switchUserDb(oauthAccount.id);
-          await loadUserData(oauthAccount);
+          await activateAccount(oauthAccount);
           return;
         }
       }
 
-      // 2. Verifica a sessão local salva
-      const activeAcc = await getActiveAccount();
-      if (!activeAcc) {
-        setAccount(null);
-        setProfile(undefined);
-        setStats(undefined);
-        setLoading(false);
-        return;
-      }
-
-      setAccount(activeAcc);
-      switchUserDb(activeAcc.id);
-      await loadUserData(activeAcc);
+      // 3. Ninguém autenticado -> tela de login
+      activeAccountIdRef.current = null;
+      setAccount(null);
+      setProfile(undefined);
+      setStats(undefined);
+      setLoading(false);
     } catch (err) {
       console.error('Erro ao inicializar autenticação:', err);
+      setAuthError(
+        'Não foi possível carregar seus dados neste dispositivo. Verifique se o navegador permite armazenamento local e recarregue a página.'
+      );
       setLoading(false);
     }
   };
@@ -84,8 +99,6 @@ export const App: React.FC = () => {
             sessionDurationMin: 60,
             dietMode: 'guided',
             mealsPerDay: 4,
-            excludedFoodIds: [],
-            preferredFoodIds: [],
             isCalibrated: false,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
@@ -103,39 +116,44 @@ export const App: React.FC = () => {
   useEffect(() => {
     initAuthAndData();
 
-    if (supabase) {
-      const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-        if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user) {
-          try {
-            const oauthAccount = await processOAuthUser(session.user);
-            setAccount(oauthAccount);
-            switchUserDb(oauthAccount.id);
-            await loadUserData(oauthAccount);
-          } catch (err) {
-            console.error('Erro ao processar login OAuth:', err);
-          }
-        }
-      });
+    if (!supabase) return;
 
-      return () => {
-        authListener.subscription.unsubscribe();
-      };
-    }
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // 'INITIAL_SESSION' já é tratado por initAuthAndData; reprocessá-lo aqui
+      // causaria carregamento duplicado do contêiner.
+      if (event !== 'SIGNED_IN' || !session?.user) return;
+
+      try {
+        const oauthAccount = await processOAuthUser(session.user);
+        // Só troca de conta se realmente mudou (evita recarregar tudo a cada
+        // renovação de token).
+        if (activeAccountIdRef.current === oauthAccount.id) return;
+        await activateAccount(oauthAccount);
+      } catch (err) {
+        console.error('Erro ao processar login OAuth:', err);
+        setAuthError('Não foi possível concluir o login com o Google. Tente novamente.');
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   const handleAuthenticated = async (newAccount: UserAccount) => {
-    setAccount(newAccount);
-    switchUserDb(newAccount.id);
-    await loadUserData(newAccount);
+    setAuthError(null);
+    await activateAccount(newAccount);
   };
 
   const handleLogout = async () => {
     await logout();
+    activeAccountIdRef.current = null;
     setAccount(null);
     setProfile(undefined);
     setStats(undefined);
     setIsOnboardingOpen(false);
     setIsProfileModalOpen(false);
+    setAuthError(null);
   };
 
   if (loading) {
@@ -153,7 +171,7 @@ export const App: React.FC = () => {
   if (!account) {
     return (
       <>
-        <AuthScreen onAuthenticated={handleAuthenticated} />
+        <AuthScreen onAuthenticated={handleAuthenticated} initialError={authError} />
         <PWAInstallPrompt />
       </>
     );

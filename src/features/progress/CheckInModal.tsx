@@ -1,12 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import confetti from 'canvas-confetti';
-import { 
-  Sparkles, 
-  Check
+import {
+  Sparkles,
+  Check,
+  AlertCircle
 } from 'lucide-react';
-import { UserProfile, WeightLog, MetabolicStats } from '../../core/storage/types';
+import { UserProfile, WeightLog, MetabolicStats, CheckInLog } from '../../core/storage/types';
 import { evaluateAdaptiveMetabolism, AdaptiveEvaluationResult } from '../../core/math/adaptiveEngine';
-import { logWeightEntry, db, saveProfile } from '../../core/storage/db';
+import { logWeightEntry, db, saveProfile, ensureFoodDatabaseReady } from '../../core/storage/db';
+import { calculatePortionsTotal } from '../../core/math/macroSolver';
+import { FOOD_DATABASE_MAP } from '../../core/data/tacoDatabase';
+import { todayLocal, daysBetween } from '../../core/utils/dateUtils';
 import { Modal } from '../../components/ui/Modal';
 
 interface CheckInModalProps {
@@ -31,18 +35,88 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
   const [energyRating, setEnergyRating] = useState<number>(4);
   const [adherencePercentage, setAdherencePercentage] = useState<number>(90);
   const [evaluation, setEvaluation] = useState<AdaptiveEvaluationResult | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const initialEma = weightLogs.length > 0 ? weightLogs[0].emaWeightKg || weightLogs[0].weightKg : profile.weightKg;
-  const daysElapsed = Math.max(7, weightLogs.length);
+  /**
+   * Janela de avaliação: as pesagens dos últimos 21 dias, comparando a
+   * tendência (EMA) do início da janela com a de hoje.
+   *
+   * A versão anterior usava `weightLogs[0]` — o primeiro registro histórico de
+   * todos os tempos — e `Math.max(7, weightLogs.length)`, tratando a QUANTIDADE
+   * de pesagens como se fossem DIAS. Depois de alguns meses de uso, o
+   * "check-in semanal" comparava o peso de hoje com o do primeiro dia e dividia
+   * pelo número de registros, produzindo uma taxa semanal sem relação com a
+   * realidade.
+   */
+  const evaluationWindow = useMemo(() => {
+    const today = todayLocal();
+    const sorted = [...weightLogs].sort((a, b) => a.date.localeCompare(b.date));
+
+    if (sorted.length === 0) {
+      return { initialEma: profile.weightKg, daysElapsed: 7, hasHistory: false, windowLabel: 'sem histórico' };
+    }
+
+    const WINDOW_DAYS = 21;
+    // Primeiro registro dentro da janela; se não houver, usa o mais antigo.
+    const inWindow = sorted.filter((log) => daysBetween(log.date, today) <= WINDOW_DAYS);
+    const baseline = inWindow.length > 0 ? inWindow[0] : sorted[sorted.length - 1];
+
+    const elapsed = daysBetween(baseline.date, today);
+
+    return {
+      initialEma: baseline.emaWeightKg || baseline.weightKg,
+      daysElapsed: Math.max(1, elapsed),
+      hasHistory: elapsed >= 7,
+      windowLabel: elapsed >= 1 ? `${elapsed} ${elapsed === 1 ? 'dia' : 'dias'}` : 'menos de um dia'
+    };
+  }, [weightLogs, profile.weightKg]);
+
+  /**
+   * Média real de calorias consumidas, a partir das porções marcadas como
+   * consumidas nos cardápios. Cai para o alvo planejado quando não há registro,
+   * mas usar o alvo como se fosse o consumo real (comportamento anterior)
+   * tornava o "TDEE revelado" uma função da própria premissa.
+   */
+  const [averageConsumed, setAverageConsumed] = useState<number>(stats.targetCalories);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        await ensureFoodDatabaseReady();
+        const plans = await db.mealPlans.toArray();
+        const consumed = plans.reduce((acc, plan) => {
+          const totals = calculatePortionsTotal(
+            plan.portions.filter((p) => p.consumed),
+            FOOD_DATABASE_MAP
+          );
+          return acc + totals.calories;
+        }, 0);
+
+        if (cancelled) return;
+        // Se nada foi marcado hoje, o alvo planejado é a melhor estimativa disponível.
+        setAverageConsumed(consumed > 0 ? consumed : stats.targetCalories);
+      } catch {
+        if (!cancelled) setAverageConsumed(stats.targetCalories);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, stats.targetCalories]);
 
   const handleEvaluate = () => {
     const cleanWeight = typeof currentWeight === 'number' && currentWeight > 0 ? currentWeight : Number(currentWeight) || profile.weightKg;
     const result = evaluateAdaptiveMetabolism(
       profile.goal,
-      initialEma,
+      evaluationWindow.initialEma,
       cleanWeight,
-      daysElapsed,
-      stats.targetCalories,
+      evaluationWindow.daysElapsed,
+      averageConsumed,
       adherencePercentage,
       hungerRating
     );
@@ -50,35 +124,50 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
   };
 
   const handleApplyAdjustment = async () => {
-    if (!evaluation) return;
+    if (!evaluation || isSaving) return;
 
-    const cleanWeight = typeof currentWeight === 'number' && currentWeight > 0 ? currentWeight : Number(currentWeight) || profile.weightKg;
-    const today = new Date().toISOString().split('T')[0];
-    await logWeightEntry(today, cleanWeight);
+    setIsSaving(true);
+    setErrorMsg(null);
 
-    // Se houver ajuste calórico, atualizamos o perfil
-    await saveProfile({
-      ...profile,
-      weightKg: cleanWeight
-    });
+    try {
+      const cleanWeight = typeof currentWeight === 'number' && currentWeight > 0 ? currentWeight : Number(currentWeight) || profile.weightKg;
+      const today = todayLocal();
 
-    await db.checkInLogs.add({
-      date: today,
-      weightKg: cleanWeight,
-      hungerRating: hungerRating as any,
-      energyRating: energyRating as any,
-      adherencePercentage,
-      caloricAdjustmentSuggestedKcal: evaluation.suggestedCaloricChangeKcal,
-      notes: evaluation.reasoning
-    });
+      await logWeightEntry(today, cleanWeight);
 
-    confetti({
-      particleCount: 70,
-      spread: 60
-    });
+      // Acumula o ajuste sugerido no perfil. Sem esta linha, o botão de aplicar
+      // era puramente decorativo: o alvo calórico nunca mudava.
+      const newAdjustment = (profile.calorieAdjustmentKcal || 0) + evaluation.suggestedCaloricChangeKcal;
 
-    onRecalibrated();
-    onClose();
+      await saveProfile({
+        ...profile,
+        weightKg: cleanWeight,
+        calorieAdjustmentKcal: newAdjustment
+      });
+
+      await db.checkInLogs.add({
+        date: today,
+        weightKg: cleanWeight,
+        hungerRating: hungerRating as CheckInLog['hungerRating'],
+        energyRating: energyRating as CheckInLog['energyRating'],
+        adherencePercentage,
+        caloricAdjustmentSuggestedKcal: evaluation.suggestedCaloricChangeKcal,
+        notes: evaluation.reasoning
+      });
+
+      confetti({
+        particleCount: 70,
+        spread: 60
+      });
+
+      onRecalibrated();
+      onClose();
+    } catch (err) {
+      console.error('Erro ao salvar o check-in:', err);
+      setErrorMsg('Não foi possível salvar o check-in. Verifique o espaço de armazenamento do navegador e tente novamente.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -89,9 +178,32 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
       subtitle="Recalibração matemática baseada na resposta biológica real"
     >
       <div className="space-y-4">
+        {errorMsg && (
+          <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-semibold flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
+
         {/* Step 1: Input Questions */}
         {!evaluation ? (
           <div className="space-y-4">
+            <div className="p-3 rounded-2xl bg-[#060A14] border border-white/[0.06] text-[11px] font-mono text-slate-400 flex items-start gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-[#A3E635] shrink-0 mt-0.5" />
+              <span>
+                {evaluationWindow.hasHistory ? (
+                  <>
+                    Comparando com a tendência de{' '}
+                    <strong className="text-white">{evaluationWindow.windowLabel}</strong> atrás.
+                  </>
+                ) : (
+                  <>
+                    Você tem <strong className="text-white">{evaluationWindow.windowLabel}</strong> de
+                    histórico. O diagnóstico fica mais preciso a partir de 7 dias de pesagens.
+                  </>
+                )}
+              </span>
+            </div>
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1.5 uppercase tracking-wider font-mono">
                 Peso em Jejum Hoje (kg)
@@ -216,12 +328,21 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
               </p>
 
               {evaluation.suggestedCaloricChangeKcal !== 0 && (
-                <div className="p-3 rounded-xl bg-[#090F1E] border border-[#84CC16]/30 flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-300">Ajuste Recomendado:</span>
-                  <span className="text-sm font-mono font-black text-[#A3E635]">
-                    {evaluation.suggestedCaloricChangeKcal > 0 ? '+' : ''}
-                    {evaluation.suggestedCaloricChangeKcal} kcal/dia
-                  </span>
+                <div className="p-3 rounded-xl bg-[#090F1E] border border-[#84CC16]/30 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-300">Ajuste a aplicar:</span>
+                    <span className="text-sm font-mono font-black text-[#A3E635]">
+                      {evaluation.suggestedCaloricChangeKcal > 0 ? '+' : ''}
+                      {evaluation.suggestedCaloricChangeKcal} kcal/dia
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
+                    <span>Nova meta diária:</span>
+                    <span className="text-white font-bold">
+                      {stats.targetCalories} &rarr;{' '}
+                      {stats.targetCalories + evaluation.suggestedCaloricChangeKcal} kcal
+                    </span>
+                  </div>
                 </div>
               )}
             </div>
@@ -229,16 +350,24 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
             <div className="flex gap-2">
               <button
                 onClick={() => setEvaluation(null)}
-                className="flex-1 py-3 rounded-2xl bg-[#060A14] border border-white/10 text-slate-300 text-xs font-bold"
+                disabled={isSaving}
+                className="flex-1 py-3 rounded-2xl bg-[#060A14] border border-white/10 text-slate-300 text-xs font-bold disabled:opacity-50"
               >
                 Revisar Respostas
               </button>
               <button
                 onClick={handleApplyAdjustment}
-                className="flex-1 py-3 rounded-2xl btn-lime text-slate-950 text-xs font-display font-black uppercase tracking-wider shadow-lg shadow-lime-500/20 flex items-center justify-center gap-1.5"
+                disabled={isSaving}
+                className="flex-1 py-3 rounded-2xl btn-lime text-slate-950 text-xs font-display font-black uppercase tracking-wider shadow-lg shadow-lime-500/20 flex items-center justify-center gap-1.5 disabled:opacity-60"
               >
                 <Check className="w-4 h-4 stroke-[3]" />
-                <span>Salvar Check-in</span>
+                <span>
+                  {isSaving
+                    ? 'Salvando...'
+                    : evaluation.suggestedCaloricChangeKcal !== 0
+                    ? 'Salvar e Aplicar'
+                    : 'Salvar Check-in'}
+                </span>
               </button>
             </div>
           </div>

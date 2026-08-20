@@ -50,9 +50,19 @@ export interface UserProfile {
   sessionDurationMin: number;
   dietMode: DietMode;
   mealsPerDay: number;
-  excludedFoodIds: string[];
-  preferredFoodIds: string[];
+  /** Restrições alimentares aplicadas na montagem automática do cardápio. */
+  dietRestrictions?: {
+    lactoseFree?: boolean;
+    noFish?: boolean;
+    vegetarian?: boolean;
+  };
   isCalibrated: boolean;
+  /**
+   * Ajuste calórico acumulado pelos check-ins adaptativos, em kcal/dia.
+   * É somado ao alvo calculado pelas fórmulas, e é o que faz o motor de
+   * malha fechada realmente ter efeito sobre a dieta.
+   */
+  calorieAdjustmentKcal?: number;
   preWorkoutFormula?: PreWorkoutFormula;
   coffeeConfig?: CoffeeConfig;
   createdAt: string;
@@ -62,7 +72,7 @@ export interface UserProfile {
 export interface MetabolicStats {
   bmr: number;
   tdee: number;
-  formulaUsed: 'mifflin' | 'katch_mcardle' | 'cunningham';
+  formulaUsed: 'mifflin' | 'katch_mcardle';
   targetCalories: number;
   proteinGrams: number;
   carbGrams: number;
@@ -72,6 +82,8 @@ export interface MetabolicStats {
   fiberGramsTarget: number;
   dailyDeficitOrSurplusKcal: number;
   expectedWeeklyWeightChangeKg: number;
+  /** Ajuste vindo dos check-ins que já está embutido em targetCalories. */
+  appliedCalorieAdjustmentKcal: number;
 }
 
 export interface DailyThermogenicLog {
@@ -80,6 +92,8 @@ export interface DailyThermogenicLog {
   blackCoffeeCups: number; // 1 cup = 150ml ~100mg cafeina
   preWorkoutDoses: number; // 1 dose = formula (400mg cafeina + taurina + beta-alanina)
   totalThermogenicCaloriesBurned: number;
+  /** Água ingerida no dia, em ml. Persistida para não zerar a cada recarga. */
+  waterMl?: number;
 }
 
 export interface FoodItem {

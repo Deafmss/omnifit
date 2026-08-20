@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Coffee, Zap, Flame, Sparkles, Check, Sliders } from 'lucide-react';
-import { UserProfile, CoffeeConfig, PreWorkoutFormula } from '../../core/storage/types';
+import { UserProfile, MetabolicStats, CoffeeConfig, PreWorkoutFormula } from '../../core/storage/types';
 import { 
   USER_PRE_WORKOUT_FORMULA,
   calculateCaffeineThermogenesis,
@@ -13,6 +13,7 @@ interface ThermogenicsConfigModalProps {
   isOpen: boolean;
   onClose: () => void;
   profile: UserProfile;
+  stats: MetabolicStats;
   onSaved: () => void;
 }
 
@@ -20,12 +21,23 @@ export const ThermogenicsConfigModal: React.FC<ThermogenicsConfigModalProps> = (
   isOpen,
   onClose,
   profile,
+  stats,
   onSaved
 }) => {
   const [activeTab, setActiveTab] = useState<'coffee' | 'preworkout'>('coffee');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Coffee State
-  const [selectedCupType, setSelectedCupType] = useState<'espresso' | 'standard' | 'mug' | 'custom'>('standard');
+  // Deriva o preset a partir do que já está salvo. Antes iniciava sempre em
+  // 'standard', então salvar de novo gravava o nome "Xícara Coada" com o volume
+  // e a cafeína de outra dose.
+  const [selectedCupType, setSelectedCupType] = useState<'espresso' | 'standard' | 'mug' | 'custom'>(() => {
+    const ml = profile.coffeeConfig?.servingMl;
+    if (ml === 50) return 'espresso';
+    if (ml === 150) return 'standard';
+    if (ml === 250) return 'mug';
+    return profile.coffeeConfig ? 'custom' : 'standard';
+  });
   const [coffeeMl, setCoffeeMl] = useState<number | string>(profile.coffeeConfig?.servingMl || 150);
   const [coffeeCaffeineMg, setCoffeeCaffeineMg] = useState<number | string>(profile.coffeeConfig?.caffeineMg || 100);
 
@@ -36,8 +48,9 @@ export const ThermogenicsConfigModal: React.FC<ThermogenicsConfigModalProps> = (
   const [preTaurineMg, setPreTaurineMg] = useState<number | string>(profile.preWorkoutFormula?.taurineMg || 2000);
   const [preBetaAlanineMg, setPreBetaAlanineMg] = useState<number | string>(profile.preWorkoutFormula?.betaAlanineMg || 2000);
 
-  // Estimativas de TMB para o preview
-  const bmr = 1800; // Valor de referência para o preview
+  // TMB real do usuário: a queima termogênica escala com ela, então usar um
+  // valor fixo de 1800 fazia o preview divergir do que o app credita no dia.
+  const bmr = stats.bmr;
 
   // Cálculos reativos em tempo real
   const currentCoffeeCaffeine = typeof coffeeCaffeineMg === 'number' ? coffeeCaffeineMg : Number(coffeeCaffeineMg) || 100;
@@ -49,13 +62,15 @@ export const ThermogenicsConfigModal: React.FC<ThermogenicsConfigModalProps> = (
     caffeineMg: typeof preCaffeineMg === 'number' ? preCaffeineMg : Number(preCaffeineMg) || 400,
     taurineMg: typeof preTaurineMg === 'number' ? preTaurineMg : Number(preTaurineMg) || 2000,
     betaAlanineMg: typeof preBetaAlanineMg === 'number' ? preBetaAlanineMg : Number(preBetaAlanineMg) || 2000,
-    arginineMg: 1000,
-    sodiumMg: 40,
-    vitaminB5Mg: 5.64,
-    vitaminB6Mg: 3.9,
-    vitaminEMg: 30,
-    chromiumMcg: 35,
-    zeroSugar: true
+    // Campos que não aparecem nesta tela são preservados do perfil, em vez de
+    // voltarem para o padrão de fábrica a cada edição.
+    arginineMg: profile.preWorkoutFormula?.arginineMg ?? USER_PRE_WORKOUT_FORMULA.arginineMg,
+    sodiumMg: profile.preWorkoutFormula?.sodiumMg ?? USER_PRE_WORKOUT_FORMULA.sodiumMg,
+    vitaminB5Mg: profile.preWorkoutFormula?.vitaminB5Mg ?? USER_PRE_WORKOUT_FORMULA.vitaminB5Mg,
+    vitaminB6Mg: profile.preWorkoutFormula?.vitaminB6Mg ?? USER_PRE_WORKOUT_FORMULA.vitaminB6Mg,
+    vitaminEMg: profile.preWorkoutFormula?.vitaminEMg ?? USER_PRE_WORKOUT_FORMULA.vitaminEMg,
+    chromiumMcg: profile.preWorkoutFormula?.chromiumMcg ?? USER_PRE_WORKOUT_FORMULA.chromiumMcg,
+    zeroSugar: profile.preWorkoutFormula?.zeroSugar ?? true
   };
   const preWorkoutPreview = calculatePreWorkoutThermogenesis(currentPreFormula, bmr, 1);
 
@@ -87,13 +102,18 @@ export const ThermogenicsConfigModal: React.FC<ThermogenicsConfigModalProps> = (
       caffeineMg: currentCoffeeCaffeine
     };
 
-    await saveProfile({
-      ...profile,
-      coffeeConfig: finalCoffee,
-      preWorkoutFormula: currentPreFormula
-    });
-    onSaved();
-    onClose();
+    try {
+      await saveProfile({
+        ...profile,
+        coffeeConfig: finalCoffee,
+        preWorkoutFormula: currentPreFormula
+      });
+      onSaved();
+      onClose();
+    } catch (err) {
+      console.error('Erro ao salvar configuração de termogênicos:', err);
+      setErrorMsg('Não foi possível salvar a configuração. Tente novamente.');
+    }
   };
 
   return (
@@ -104,6 +124,12 @@ export const ThermogenicsConfigModal: React.FC<ThermogenicsConfigModalProps> = (
       subtitle="Defina o tamanho da sua xícara e a fórmula do seu pré-treino"
     >
       <div className="space-y-4">
+        {errorMsg && (
+          <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-semibold">
+            {errorMsg}
+          </div>
+        )}
+
         {/* Navigation Tabs */}
         <div className="grid grid-cols-2 gap-2 p-1 bg-slate-900 rounded-2xl border border-white/5 text-xs font-bold">
           <button

@@ -1,7 +1,8 @@
 import { 
   RotateCcw, 
   ShieldAlert,
-  LogOut
+  LogOut,
+  Smartphone
 } from 'lucide-react';
 import { UserProfile, MetabolicStats } from '../../core/storage/types';
 import { UserAccount } from '../../core/auth/authService';
@@ -187,6 +188,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
         {/* Re-calibrate / Reset Actions */}
         <div className="space-y-2 pt-2">
+          <button
+            onClick={() => {
+              localStorage.removeItem('omnifit_pwa_dismissed_at');
+              onClose();
+              window.location.reload();
+            }}
+            className="w-full py-3 rounded-2xl bg-[#060A14] hover:bg-[#060A14]/80 text-[#A3E635] border border-[#84CC16]/40 font-bold text-xs transition-all flex items-center justify-center gap-2"
+          >
+            <Smartphone className="w-4 h-4" />
+            <span>Instalar Aplicativo no Celular (PWA)</span>
+          </button>
+
           <button
             onClick={() => {
               onClose();

@@ -42,8 +42,6 @@ describe('Motor Metabólico (Termodinâmica & Padrão Ouro)', () => {
       sessionDurationMin: 60,
       dietMode: 'guided',
       mealsPerDay: 4,
-      excludedFoodIds: [],
-      preferredFoodIds: [],
       isCalibrated: true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()

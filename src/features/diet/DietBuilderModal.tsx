@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { 
-  Check, 
+import {
+  Check,
   Layers,
-  FileText
+  FileText,
+  AlertCircle
 } from 'lucide-react';
 import { Modal } from '../../components/ui/Modal';
 import { UserProfile, MetabolicStats, MealPlan } from '../../core/storage/types';
@@ -14,7 +15,7 @@ interface DietBuilderModalProps {
   onClose: () => void;
   profile: UserProfile;
   stats: MetabolicStats;
-  onApplyDiet: (plans: MealPlan[]) => void;
+  onApplyDiet: () => void;
 }
 
 export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
@@ -30,6 +31,33 @@ export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
     profile.goal === 'fat_loss' ? 'fat_loss' : profile.goal === 'hypertrophy' ? 'hypertrophy' : 'recomposition'
   );
   const [mealsCount, setMealsCount] = useState<number>(profile.mealsPerDay || 4);
+  const [isApplying, setIsApplying] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  /** Substitui o cardápio atual, sempre confirmando antes. */
+  const replaceMealPlans = async (plans: MealPlan[], confirmMessage: string) => {
+    if (isApplying) return;
+
+    const hasExisting = (await db.mealPlans.count()) > 0;
+    if (hasExisting && !confirm(confirmMessage)) return;
+
+    setIsApplying(true);
+    setErrorMsg(null);
+
+    try {
+      await db.transaction('rw', db.mealPlans, async () => {
+        await db.mealPlans.clear();
+        await db.mealPlans.bulkAdd(plans);
+      });
+      onApplyDiet();
+      onClose();
+    } catch (err) {
+      console.error('Erro ao aplicar cardápio:', err);
+      setErrorMsg('Não foi possível salvar o novo cardápio. Tente novamente.');
+    } finally {
+      setIsApplying(false);
+    }
+  };
 
   const handleGenerateAutomatic = async () => {
     const plans = generateSmartMealPlan({
@@ -39,36 +67,42 @@ export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
       targetFat: stats.fatGrams,
       mealsPerDay: mealsCount,
       budgetTier,
-      focus
+      focus,
+      restrictions: profile.dietRestrictions
     });
 
-    await db.mealPlans.clear();
-    await db.mealPlans.bulkAdd(plans);
-    onApplyDiet(plans);
-    onClose();
+    await replaceMealPlans(
+      plans,
+      'Isto substitui todo o seu cardápio atual por um novo, gerado automaticamente. Deseja continuar?'
+    );
   };
 
   const handleStartBlank = async () => {
-    const calPerMeal = Math.round(stats.targetCalories / mealsCount);
-    const protPerMeal = Math.round(stats.proteinGrams / mealsCount);
-    const carbPerMeal = Math.round(stats.carbGrams / mealsCount);
-    const fatPerMeal = Math.round(stats.fatGrams / mealsCount);
+    const count = Math.max(2, Math.min(6, mealsCount));
+    const calPerMeal = Math.round(stats.targetCalories / count);
+    const protPerMeal = Math.round(stats.proteinGrams / count);
+    const carbPerMeal = Math.round(stats.carbGrams / count);
+    const fatPerMeal = Math.round(stats.fatGrams / count);
 
-    const defaultNames = [
-      'Café da Manhã',
-      'Almoço',
-      'Lanche da Tarde',
-      'Jantar',
-      'Ceia',
-      'Colação'
+    // Nomes e horários em ordem cronológica. Antes 'Colação' (10:30) estava na
+    // última posição, depois da 'Ceia' (22:30), então com 6 refeições a última
+    // do dia caía às 10:30 da manhã.
+    const slots: { name: string; time: string }[] = [
+      { name: 'Café da Manhã', time: '08:00' },
+      { name: 'Almoço', time: '12:30' },
+      { name: 'Lanche da Tarde', time: '16:30' },
+      { name: 'Jantar', time: '20:00' },
+      { name: 'Ceia', time: '22:30' }
     ];
 
-    const defaultTimes = ['08:00', '12:30', '16:30', '20:00', '22:30', '10:30'];
+    if (count === 6) {
+      slots.splice(1, 0, { name: 'Colação', time: '10:30' });
+    }
 
-    const blankPlans: MealPlan[] = Array.from({ length: mealsCount }).map((_, i) => ({
-      name: defaultNames[i] || `Refeição ${i + 1}`,
+    const blankPlans: MealPlan[] = Array.from({ length: count }).map((_, i) => ({
+      name: slots[i]?.name || `Refeição ${i + 1}`,
       order: i + 1,
-      timeLabel: defaultTimes[i] || '12:00',
+      timeLabel: slots[i]?.time || '12:00',
       targetCalories: calPerMeal,
       targetProtein: protPerMeal,
       targetCarbs: carbPerMeal,
@@ -76,10 +110,10 @@ export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
       portions: []
     }));
 
-    await db.mealPlans.clear();
-    await db.mealPlans.bulkAdd(blankPlans);
-    onApplyDiet(blankPlans);
-    onClose();
+    await replaceMealPlans(
+      blankPlans,
+      'Isto apaga o seu cardápio atual e cria refeições vazias para você montar do zero. Deseja continuar?'
+    );
   };
 
   const budgetOptions: { id: BudgetTier; title: string; subtitle: string; foods: string }[] = [
@@ -111,6 +145,12 @@ export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
       subtitle="Defina a estrutura e as preferências do seu plano alimentar"
     >
       <div className="space-y-4 max-h-[72vh] overflow-y-auto pr-1">
+        {errorMsg && (
+          <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-semibold flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
         {/* Segmented Control (Gym UI Kit Style) */}
         <div className="p-1 bg-[#060A14] border border-white/[0.08] rounded-2xl flex gap-1">
           <button
@@ -258,9 +298,10 @@ export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
             {/* Botão de Ação Sólido */}
             <button
               onClick={handleGenerateAutomatic}
-              className="w-full py-3.5 px-4 rounded-2xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-lg shadow-lime-500/20 transition-all flex items-center justify-center"
+              disabled={isApplying}
+              className="w-full py-3.5 px-4 rounded-2xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-lg shadow-lime-500/20 transition-all flex items-center justify-center disabled:opacity-60"
             >
-              <span>Criar Plano Alimentar</span>
+              <span>{isApplying ? 'Criando...' : 'Criar Plano Alimentar'}</span>
             </button>
           </div>
         ) : (
@@ -306,9 +347,10 @@ export const DietBuilderModal: React.FC<DietBuilderModalProps> = ({
 
             <button
               onClick={handleStartBlank}
-              className="w-full py-3.5 px-4 rounded-2xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-lg shadow-lime-500/20 transition-all flex items-center justify-center"
+              disabled={isApplying}
+              className="w-full py-3.5 px-4 rounded-2xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-lg shadow-lime-500/20 transition-all flex items-center justify-center disabled:opacity-60"
             >
-              <span>Iniciar Montagem Manual</span>
+              <span>{isApplying ? 'Preparando...' : 'Iniciar Montagem Manual'}</span>
             </button>
           </div>
         )}

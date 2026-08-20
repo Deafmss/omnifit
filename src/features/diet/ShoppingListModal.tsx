@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Check, ShoppingBag } from 'lucide-react';
 import { MealPlan } from '../../core/storage/types';
 import { FOOD_DATABASE_MAP } from '../../core/data/tacoDatabase';
@@ -17,19 +17,35 @@ export const ShoppingListModal: React.FC<ShoppingListModalProps> = ({
   mealPlans
 }) => {
   const [days, setDays] = useState<number>(7);
-  const [items, setItems] = useState<ShoppingItem[]>(() =>
-    generateWeeklyShoppingList(mealPlans, FOOD_DATABASE_MAP, 7)
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(() => new Set());
+
+  // A lista é derivada do cardápio e do período, e não guardada em estado
+  // inicializado uma única vez: o inicializador rodava na primeira renderização
+  // da tela de dieta, quando `mealPlans` ainda estava vazio, e a lista abria em
+  // branco a menos que o usuário trocasse o período.
+  const items = useMemo<ShoppingItem[]>(
+    () =>
+      generateWeeklyShoppingList(mealPlans, FOOD_DATABASE_MAP, days).map((item) => ({
+        ...item,
+        checked: checkedIds.has(item.foodId)
+      })),
+    [mealPlans, days, checkedIds]
   );
 
   const handleDaysChange = (newDays: number) => {
     setDays(newDays);
-    setItems(generateWeeklyShoppingList(mealPlans, FOOD_DATABASE_MAP, newDays));
   };
 
   const toggleItem = (foodId: string) => {
-    setItems((prev) =>
-      prev.map((it) => (it.foodId === foodId ? { ...it, checked: !it.checked } : it))
-    );
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(foodId)) {
+        next.delete(foodId);
+      } else {
+        next.add(foodId);
+      }
+      return next;
+    });
   };
 
   return (

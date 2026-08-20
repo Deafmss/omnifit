@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Dumbbell, 
   Mail, 
@@ -10,33 +10,37 @@ import {
   Sparkles, 
   Trash2
 } from 'lucide-react';
-import { 
-  login, 
-  signUp, 
+import {
+  login,
+  signUp,
   signInWithGoogle,
-  listSavedAccounts, 
-  switchAccount, 
-  deleteAccount, 
-  UserAccount 
+  listSavedAccounts,
+  deleteAccount,
+  UserAccount
 } from '../../core/auth/authService';
 import { switchUserDb } from '../../core/storage/db';
 
 interface AuthScreenProps {
   onAuthenticated: (account: UserAccount) => void;
+  initialError?: string | null;
 }
 
-export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
+export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated, initialError }) => {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
-  
+
   // Form fields
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  
+
   // UI states
   const [savedAccounts, setSavedAccounts] = useState<UserAccount[]>([]);
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(initialError || null);
+
+  // Conta escolhida na lista do dispositivo, aguardando a senha.
+  const [pendingAccountId, setPendingAccountId] = useState<string | null>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
 
   const loadSaved = async () => {
     const list = await listSavedAccounts();
@@ -87,24 +91,33 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
     setLoading(true);
     try {
       await signInWithGoogle();
+      // Em caso de sucesso o navegador é redirecionado. Se ele voltar para cá
+      // (popup bloqueado, botão "voltar"), o finally destrava a interface.
     } catch (err: any) {
       setErrorMsg(err?.message || 'Erro ao iniciar autenticação com o Google.');
+    } finally {
       setLoading(false);
     }
   };
 
-  const handleQuickLogin = async (acc: UserAccount) => {
+  /**
+   * Selecionar uma conta salva apenas pré-preenche o formulário: a senha
+   * continua obrigatória. Entrar com um clique tornaria a senha decorativa
+   * para qualquer pessoa com acesso ao aparelho.
+   */
+  const handleSelectSavedAccount = (acc: UserAccount) => {
     setErrorMsg(null);
-    setLoading(true);
-    try {
-      const updated = await switchAccount(acc.id);
-      switchUserDb(updated.id);
-      onAuthenticated(updated);
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Erro ao alternar para esta conta.');
-    } finally {
-      setLoading(false);
+
+    if (acc.provider === 'google') {
+      setErrorMsg('Esta conta foi criada com o Google. Use o botão "Entrar com o Google".');
+      return;
     }
+
+    setMode('login');
+    setEmail(acc.email);
+    setPassword('');
+    setPendingAccountId(acc.id);
+    passwordInputRef.current?.focus();
   };
 
   const handleDeleteSavedAccount = async (e: React.MouseEvent, accId: string) => {
@@ -155,8 +168,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
               {savedAccounts.map((acc) => (
                 <div
                   key={acc.id}
-                  onClick={() => handleQuickLogin(acc)}
-                  className="p-2.5 rounded-2xl bg-[#060A14] border border-white/[0.06] hover:border-[#84CC16]/50 hover:bg-[#060A14]/80 transition-all flex items-center justify-between cursor-pointer group btn-tactile"
+                  onClick={() => handleSelectSavedAccount(acc)}
+                  className={`p-2.5 rounded-2xl bg-[#060A14] border transition-all flex items-center justify-between cursor-pointer group btn-tactile ${
+                    pendingAccountId === acc.id
+                      ? 'border-[#84CC16]/60 bg-[#84CC16]/[0.06]'
+                      : 'border-white/[0.06] hover:border-[#84CC16]/50 hover:bg-[#060A14]/80'
+                  }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 rounded-xl bg-[#84CC16]/15 border border-[#84CC16]/30 text-[#A3E635] flex items-center justify-center font-bold text-xs font-mono shrink-0 uppercase">
@@ -174,7 +191,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
 
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-mono font-bold text-[#A3E635] opacity-0 group-hover:opacity-100 transition-opacity">
-                      Acessar &rarr;
+                      {acc.provider === 'google' ? 'Google' : 'Digitar senha →'}
                     </span>
                     <button
                       type="button"
@@ -315,11 +332,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated }) => {
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
+                  ref={passwordInputRef}
                   type="password"
                   required
+                  minLength={mode === 'signup' ? 8 : undefined}
+                  autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Mínimo de 4 caracteres"
+                  placeholder={mode === 'signup' ? 'Mínimo de 8 caracteres' : 'Sua senha'}
                   className="w-full pl-10 pr-4 py-3 bg-[#060A14] border border-white/[0.08] rounded-2xl text-xs font-bold text-white placeholder-slate-600 focus:border-[#84CC16] focus:outline-none transition-all font-mono"
                 />
               </div>

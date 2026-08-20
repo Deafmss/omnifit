@@ -40,8 +40,12 @@ export function evaluateAdaptiveMetabolism(
   adherencePercentage: number,
   hungerRating: number // 1 a 5
 ): AdaptiveEvaluationResult {
+  // Guarda contra divisão por zero: dois check-ins no mesmo dia geravam
+  // Infinity/NaN, que se propagava para toda a interface.
+  const safeDays = Math.max(1, Math.round(daysElapsed) || 1);
+
   const deltaWeightKg = Number((currentEmaWeightKg - initialEmaWeightKg).toFixed(2));
-  const weeklyRateKg = Number(((deltaWeightKg / daysElapsed) * 7).toFixed(2));
+  const weeklyRateKg = Number(((deltaWeightKg / safeDays) * 7).toFixed(2));
 
   // Se a adesão for muito baixa (< 75%), o problema não é o metabolismo e sim o seguimento da dieta
   if (adherencePercentage < 75) {
@@ -55,7 +59,7 @@ export function evaluateAdaptiveMetabolism(
 
   // Cálculo do TDEE real revelado termodinamicamente (7700 kcal ≈ 1kg de tecido adiposo)
   const revealedTDEE = Math.round(
-    averageDailyCaloriesConsumed - ((deltaWeightKg * 7700) / Math.max(1, daysElapsed))
+    averageDailyCaloriesConsumed - ((deltaWeightKg * 7700) / safeDays)
   );
 
   switch (goal) {
@@ -88,7 +92,7 @@ export function evaluateAdaptiveMetabolism(
 
     case 'fat_loss':
       // Emagrecimento: taxa ideal de perda é entre -0.4kg e -0.9kg por semana
-      if (Math.abs(weeklyRateKg) < 0.15 && daysElapsed >= 10) {
+      if (Math.abs(weeklyRateKg) < 0.15 && safeDays >= 10) {
         // Estagnação com alta adesão
         const hungerHigh = hungerRating >= 4;
         const adjustment = hungerHigh ? -75 : -150;
@@ -97,7 +101,7 @@ export function evaluateAdaptiveMetabolism(
           deltaWeightKg,
           revealedTDEE,
           suggestedCaloricChangeKcal: adjustment,
-          reasoning: `Peso estagnado nos últimos ${daysElapsed} dias com adesão de ${adherencePercentage}%. Seu TDEE real calculado é de ~${revealedTDEE} kcal. Reduzimos ${Math.abs(adjustment)} kcal para reativar o déficit.`
+          reasoning: `Peso estagnado nos últimos ${safeDays} dias com adesão de ${adherencePercentage}%. Seu TDEE real calculado é de ~${revealedTDEE} kcal. Reduzimos ${Math.abs(adjustment)} kcal para reativar o déficit.`
         };
       } else if (weeklyRateKg < -1.2) {
         return {
@@ -108,6 +112,21 @@ export function evaluateAdaptiveMetabolism(
           reasoning: `Perda de peso excessivamente rápida (${weeklyRateKg} kg/sem). Risco de desaceleração da tireoide e catabolismo muscular. Adicionamos +150 kcal.`
         };
       }
+      // Perda existe, mas lenta: um empurrão pequeno acelera sem exagerar.
+      if (weeklyRateKg > -0.3 && safeDays >= 10) {
+        return {
+          status: 'on_track',
+          deltaWeightKg,
+          revealedTDEE,
+          suggestedCaloricChangeKcal: hungerRating >= 4 ? 0 : -100,
+          reasoning: `Perda lenta (${weeklyRateKg} kg/sem). ${
+            hungerRating >= 4
+              ? 'Como sua fome está alta, mantemos as calorias e priorizamos a consistência.'
+              : 'Reduzimos 100 kcal para chegar à faixa ideal de -0,4 a -0,9 kg por semana.'
+          }`
+        };
+      }
+
       return {
         status: 'on_track',
         deltaWeightKg,
@@ -118,7 +137,7 @@ export function evaluateAdaptiveMetabolism(
 
     case 'hypertrophy':
       // Hipertrofia limpa: ganho ideal é de +0.2kg a +0.4kg por semana
-      if (weeklyRateKg < 0.1 && daysElapsed >= 10) {
+      if (weeklyRateKg < 0.1 && safeDays >= 10) {
         return {
           status: 'stalled',
           deltaWeightKg,

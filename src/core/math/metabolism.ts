@@ -10,7 +10,7 @@ export function calculateBMR(
   heightCm: number,
   age: number,
   bodyFatPercentage?: number
-): { bmr: number; formulaUsed: 'mifflin' | 'katch_mcardle' | 'cunningham' } {
+): { bmr: number; formulaUsed: 'mifflin' | 'katch_mcardle' } {
   if (bodyFatPercentage && bodyFatPercentage > 3 && bodyFatPercentage < 60) {
     const leanBodyMassKg = weightKg * (1 - bodyFatPercentage / 100);
     const bmr = 370 + (21.6 * leanBodyMassKg);
@@ -33,9 +33,9 @@ export function calculateTDEE(
   // Fator de atividade base para rotina diária (trabalho/estudo de escritório)
   const basePAL = 1.2;
 
-  // Gasto adicional estimado de treino por semana (média de 6.0 METs para musculação)
-  const weeklyTrainingHours = (trainingDaysPerWeek * sessionDurationMin) / 60;
-  const weeklyTrainingSurplusFactor = (weeklyTrainingHours * 0.05); // ~5% de acréscimo por hora semanal
+  // Acréscimo pelo volume de treino: ~5% do PAL por hora de treino semanal.
+  const weeklyTrainingHours = (Math.max(0, trainingDaysPerWeek) * Math.max(0, sessionDurationMin)) / 60;
+  const weeklyTrainingSurplusFactor = weeklyTrainingHours * 0.05;
 
   const activityMultiplier = Math.min(2.0, Math.max(1.2, basePAL + weeklyTrainingSurplusFactor));
   return Math.round(bmr * activityMultiplier);
@@ -94,6 +94,25 @@ export function calculateMetabolicStats(profile: UserProfile): MetabolicStats {
       break;
   }
 
+  // Ajuste acumulado pelos check-ins adaptativos. É aqui que o motor de malha
+  // fechada passa a ter efeito real: antes o valor era gravado no log do
+  // check-in e nunca chegava ao alvo calórico do usuário.
+  //
+  // O ajuste é limitado a +/- 30% do TDEE e o alvo nunca desce abaixo da TMB,
+  // para que uma sequência de check-ins não empurre a dieta a um patamar
+  // perigosamente baixo.
+  const adjustmentCap = Math.round(tdee * 0.3);
+  const appliedCalorieAdjustmentKcal = Math.max(
+    -adjustmentCap,
+    Math.min(adjustmentCap, Math.round(profile.calorieAdjustmentKcal || 0))
+  );
+
+  if (appliedCalorieAdjustmentKcal !== 0) {
+    const floor = profile.goal === 'fat_loss' ? bmr + 50 : bmr;
+    targetCalories = Math.max(floor, targetCalories + appliedCalorieAdjustmentKcal);
+    dailyDeficitOrSurplusKcal = targetCalories - tdee;
+  }
+
   // Gramas de Proteína e Gordura
   const proteinGrams = Math.round(profile.weightKg * proteinRatioGPerKg);
   const minFatGrams = profile.gender === 'female' ? 45 : 50;
@@ -134,6 +153,7 @@ export function calculateMetabolicStats(profile: UserProfile): MetabolicStats {
     waterIntakeMl,
     fiberGramsTarget,
     dailyDeficitOrSurplusKcal,
-    expectedWeeklyWeightChangeKg
+    expectedWeeklyWeightChangeKg,
+    appliedCalorieAdjustmentKcal
   };
 }

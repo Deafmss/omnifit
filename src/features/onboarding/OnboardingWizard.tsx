@@ -11,11 +11,13 @@ import {
   Sparkles,
   Zap,
   Smile,
-  ShieldCheck
+  ShieldCheck,
+  AlertCircle
 } from 'lucide-react';
 import { UserProfile, Gender, ExperienceLevel, FitnessGoal, DietMode } from '../../core/storage/types';
 import { calculateMetabolicStats } from '../../core/math/metabolism';
-import { saveProfile, generateDefaultRoutines, generateInitialMealPlans, logWeightEntry } from '../../core/storage/db';
+import { db, saveProfile, generateDefaultRoutines, generateInitialMealPlans, logWeightEntry } from '../../core/storage/db';
+import { todayLocal } from '../../core/utils/dateUtils';
 
 interface OnboardingWizardProps {
   onComplete: () => void;
@@ -48,6 +50,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
   const [mealsPerDay, setMealsPerDay] = useState<number>(initialProfile?.mealsPerDay || 4);
 
   const [isSaving, setIsSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Mapeia o arquétipo para uma estimativa interna suave
   const getEstimatedBf = (): number | undefined => {
@@ -69,15 +72,27 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
       : archetypeMap[selectedArchetype].female;
   };
 
+  /** Mantém o valor dentro de uma faixa fisiologicamente plausível. */
+  const clamp = (value: number | string, min: number, max: number, fallback: number): number => {
+    const parsed = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+    return Math.min(max, Math.max(min, parsed));
+  };
+
   const handleFinish = async () => {
     setIsSaving(true);
+    setErrorMsg(null);
+
     try {
-      const sanitizedAge = typeof age === 'number' && age > 0 ? age : Number(age) || 26;
-      const sanitizedHeight = typeof heightCm === 'number' && heightCm > 0 ? heightCm : Number(heightCm) || 178;
-      const sanitizedWeight = typeof weightKg === 'number' && weightKg > 0 ? weightKg : Number(weightKg) || 80;
+      const sanitizedAge = clamp(age, 12, 100, 26);
+      const sanitizedHeight = clamp(heightCm, 120, 230, 178);
+      const sanitizedWeight = clamp(weightKg, 30, 300, 80);
       const calculatedBf = getEstimatedBf();
 
       const profileData: UserProfile = {
+        // Preserva o restante do perfil (id, ajuste calórico acumulado,
+        // fórmulas de termogênico) ao recalibrar.
+        ...initialProfile,
         name: name.trim() || 'Usuário',
         age: sanitizedAge,
         gender,
@@ -90,28 +105,38 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
         sessionDurationMin,
         dietMode,
         mealsPerDay,
-        excludedFoodIds: [],
-        preferredFoodIds: [],
         isCalibrated: true,
         createdAt: initialProfile?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
 
       await saveProfile(profileData);
-      await logWeightEntry(new Date().toISOString().split('T')[0], sanitizedWeight, calculatedBf);
+      await logWeightEntry(todayLocal(), sanitizedWeight, calculatedBf);
 
       // Calcula as metas calóricas determinísticas
       const stats = calculateMetabolicStats(profileData);
 
-      // Gera as rotinas automáticas de treino e o cardápio inicial
-      await generateDefaultRoutines(trainingDaysPerWeek);
-      await generateInitialMealPlans(
-        mealsPerDay,
-        stats.targetCalories,
-        stats.proteinGrams,
-        stats.carbGrams,
-        stats.fatGrams
-      );
+      // Só gera treinos e cardápio quando ainda não existem. Na recalibração de
+      // um perfil já existente, regerar apagaria as fichas personalizadas e o
+      // cardápio inteiro do usuário sem aviso.
+      const [routineCount, mealCount] = await Promise.all([
+        db.routines.count(),
+        db.mealPlans.count()
+      ]);
+
+      if (routineCount === 0) {
+        await generateDefaultRoutines(trainingDaysPerWeek);
+      }
+
+      if (mealCount === 0) {
+        await generateInitialMealPlans(
+          mealsPerDay,
+          stats.targetCalories,
+          stats.proteinGrams,
+          stats.carbGrams,
+          stats.fatGrams
+        );
+      }
 
       // Efeito de celebração
       confetti({
@@ -123,6 +148,9 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
       onComplete();
     } catch (err) {
       console.error('Erro ao salvar onboarding:', err);
+      setErrorMsg(
+        'Não foi possível salvar sua calibração. Verifique se o navegador permite armazenamento local (evite o modo privado) e tente novamente.'
+      );
     } finally {
       setIsSaving(false);
     }
@@ -146,6 +174,12 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
 
       {/* Step Content */}
       <div className="my-auto py-6 space-y-6">
+        {errorMsg && (
+          <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-semibold flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
         {step === 1 && (
           <div className="space-y-5 animate-in fade-in duration-300">
             <div className="space-y-1">
@@ -609,7 +643,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
             type="button"
             onClick={handleFinish}
             disabled={isSaving}
-            className="w-full sm:w-auto px-8 py-3.5 rounded-2xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-xl shadow-lime-500/20 hover:brightness-110 transition-all flex items-center justify-center gap-2"
+            className="w-full sm:w-auto px-8 py-3.5 rounded-2xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-xl shadow-lime-500/20 hover:brightness-110 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
           >
             <Zap className="w-4 h-4 fill-slate-950" />
             <span>{isSaving ? 'Calibrando Plano...' : 'Calibrar Meu Plano'}</span>

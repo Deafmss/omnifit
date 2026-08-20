@@ -11,10 +11,20 @@ import {
   Sunrise,
   Sunset,
   Moon,
-  UtensilsCrossed
+  UtensilsCrossed,
+  AlertCircle
 } from 'lucide-react';
 import { MealPlan, UserProfile, MetabolicStats, DailyThermogenicLog } from '../../core/storage/types';
-import { db, getTodayThermogenicLog, updateTodayThermogenics, getActiveProfile } from '../../core/storage/db';
+import {
+  db,
+  getTodayThermogenicLog,
+  updateTodayThermogenics,
+  getActiveProfile,
+  ensureFoodDatabaseReady,
+  getTodayWaterIntake,
+  setTodayWaterIntake
+} from '../../core/storage/db';
+import { todayLocal } from '../../core/utils/dateUtils';
 import { FOOD_DATABASE_MAP } from '../../core/data/tacoDatabase';
 import { calculateFoodNutrients } from '../../core/math/macroSolver';
 import { MealCard } from './MealCard';
@@ -41,84 +51,155 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
   const [isShoppingOpen, setIsShoppingOpen] = useState(false);
   const [isThermoConfigOpen, setIsThermoConfigOpen] = useState(false);
   const [isSmartWizardOpen, setIsSmartWizardOpen] = useState(false);
-  const [waterDrunkMl, setWaterDrunkMl] = useState<number>(1500);
+  const [waterDrunkMl, setWaterDrunkMl] = useState<number>(0);
   const [eatBonusCalories, setEatBonusCalories] = useState<boolean>(false);
-  const [collapsedMealIds, setCollapsedMealIds] = useState<Set<number>>(() => new Set([2, 3, 4, 5])); // Inicialmente apenas a primeira fica aberta
+  // Guarda a ORDEM das refeições recolhidas, não o id do banco: os ids são
+  // auto-incrementais e o conjunto fixo [2,3,4,5] só acertava na primeira
+  // instalação, deixando de funcionar depois de recriar refeições.
+  const [expandedMealOrder, setExpandedMealOrder] = useState<number>(1);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [thermogenicLog, setThermogenicLog] = useState<DailyThermogenicLog>({
-    date: new Date().toISOString().split('T')[0],
+    date: todayLocal(),
     blackCoffeeCups: 0,
     preWorkoutDoses: 0,
     totalThermogenicCaloriesBurned: 0
   });
 
   const loadMealsAndProfile = async () => {
-    const plans = await db.mealPlans.orderBy('order').toArray();
-    setMealPlans(plans);
+    try {
+      // Garante que os alimentos personalizados do usuário estejam no mapa em
+      // memória antes de somar qualquer macro — sem isto eles contavam 0 kcal.
+      await ensureFoodDatabaseReady();
 
-    const thermo = await getTodayThermogenicLog();
-    setThermogenicLog(thermo);
+      const plans = await db.mealPlans.orderBy('order').toArray();
+      setMealPlans(plans);
 
-    const active = await getActiveProfile();
-    if (active) setProfile(active);
+      const thermo = await getTodayThermogenicLog();
+      setThermogenicLog(thermo);
+
+      setWaterDrunkMl(await getTodayWaterIntake());
+
+      const active = await getActiveProfile();
+      if (active) setProfile(active);
+    } catch (err) {
+      console.error('Erro ao carregar o cardápio:', err);
+      setErrorMsg('Não foi possível carregar seu cardápio. Recarregue a página.');
+    }
   };
 
   useEffect(() => {
     loadMealsAndProfile();
-  }, [stats.bmr]);
+  }, [stats.targetCalories]);
+
+  /** Executa uma escrita no banco reportando falhas ao usuário. */
+  const runWrite = async (action: () => Promise<void>, failureMessage: string) => {
+    try {
+      setErrorMsg(null);
+      await action();
+    } catch (err) {
+      console.error(failureMessage, err);
+      setErrorMsg(failureMessage);
+    }
+  };
 
   const handleUpdateMeal = async (updated: MealPlan) => {
-    if (updated.id) {
+    if (!updated.id) return;
+    await runWrite(async () => {
       await db.mealPlans.put(updated);
-      loadMealsAndProfile();
-    }
+      await loadMealsAndProfile();
+    }, 'Não foi possível salvar a alteração na refeição.');
   };
 
   const handleDeleteMeal = async (id: number) => {
-    await db.mealPlans.delete(id);
-    loadMealsAndProfile();
+    await runWrite(async () => {
+      await db.mealPlans.delete(id);
+      await loadMealsAndProfile();
+    }, 'Não foi possível excluir a refeição.');
   };
 
   const handleAddMeal = async () => {
-    const newOrder = mealPlans.length + 1;
-    const preset = HUMAN_MEAL_PRESETS[mealPlans.length] || { name: `Refeição ${newOrder}`, time: '18:00' };
-    const newMeal: MealPlan = {
-      name: preset.name,
-      order: newOrder,
-      targetCalories: Math.round(stats.targetCalories / (mealPlans.length + 1)),
-      targetProtein: Math.round(stats.proteinGrams / (mealPlans.length + 1)),
-      targetCarbs: Math.round(stats.carbGrams / (mealPlans.length + 1)),
-      targetFat: Math.round(stats.fatGrams / (mealPlans.length + 1)),
-      portions: []
-    };
-    await db.mealPlans.add(newMeal);
-    loadMealsAndProfile();
+    await runWrite(async () => {
+      const total = mealPlans.length + 1;
+      const preset = HUMAN_MEAL_PRESETS[mealPlans.length] || { name: `Refeição ${total}`, time: '18:00' };
+
+      const newMeal: MealPlan = {
+        name: preset.name,
+        order: total,
+        timeLabel: preset.time,
+        targetCalories: Math.round(stats.targetCalories / total),
+        targetProtein: Math.round(stats.proteinGrams / total),
+        targetCarbs: Math.round(stats.carbGrams / total),
+        targetFat: Math.round(stats.fatGrams / total),
+        portions: []
+      };
+
+      await db.mealPlans.add(newMeal);
+
+      // Redistribui as metas das refeições já existentes: antes só a nova
+      // recebia o valor dividido por N+1, e a soma dos alvos deixava de fechar
+      // com a meta diária.
+      await Promise.all(
+        mealPlans.map((meal) =>
+          meal.id
+            ? db.mealPlans.update(meal.id, {
+                targetCalories: Math.round(stats.targetCalories / total),
+                targetProtein: Math.round(stats.proteinGrams / total),
+                targetCarbs: Math.round(stats.carbGrams / total),
+                targetFat: Math.round(stats.fatGrams / total)
+              })
+            : Promise.resolve(0)
+        )
+      );
+
+      await loadMealsAndProfile();
+    }, 'Não foi possível adicionar a refeição.');
   };
 
   const handleResetDay = async () => {
-    for (const meal of mealPlans) {
-      if (meal.id) {
-        const resetPortions = meal.portions.map((p) => ({ ...p, consumed: false }));
-        await db.mealPlans.put({ ...meal, portions: resetPortions });
-      }
+    if (!confirm('Desmarcar todos os alimentos consumidos, a água e os termogênicos de hoje?')) {
+      return;
     }
-    setWaterDrunkMl(0);
-    const resetThermo = await updateTodayThermogenics(
-      -thermogenicLog.blackCoffeeCups,
-      -thermogenicLog.preWorkoutDoses,
-      stats.bmr
-    );
-    setThermogenicLog(resetThermo);
-    loadMealsAndProfile();
+
+    await runWrite(async () => {
+      for (const meal of mealPlans) {
+        if (meal.id) {
+          const resetPortions = meal.portions.map((p) => ({ ...p, consumed: false }));
+          await db.mealPlans.put({ ...meal, portions: resetPortions });
+        }
+      }
+
+      await setTodayWaterIntake(0);
+      await updateTodayThermogenics(
+        -thermogenicLog.blackCoffeeCups,
+        -thermogenicLog.preWorkoutDoses,
+        stats.bmr
+      );
+
+      await loadMealsAndProfile();
+    }, 'Não foi possível reiniciar o dia.');
+  };
+
+  const handleWaterChange = async (deltaMl: number) => {
+    const next = Math.max(0, waterDrunkMl + deltaMl);
+    setWaterDrunkMl(next); // resposta imediata na interface
+    await runWrite(async () => {
+      const saved = await setTodayWaterIntake(next);
+      setWaterDrunkMl(saved);
+    }, 'Não foi possível salvar o consumo de água.');
   };
 
   const handleCoffeeChange = async (delta: number) => {
-    const updated = await updateTodayThermogenics(delta, 0, stats.bmr);
-    setThermogenicLog(updated);
+    await runWrite(async () => {
+      const updated = await updateTodayThermogenics(delta, 0, stats.bmr);
+      setThermogenicLog(updated);
+    }, 'Não foi possível registrar o café.');
   };
 
   const handlePreWorkoutChange = async (delta: number) => {
-    const updated = await updateTodayThermogenics(0, delta, stats.bmr);
-    setThermogenicLog(updated);
+    await runWrite(async () => {
+      const updated = await updateTodayThermogenics(0, delta, stats.bmr);
+      setThermogenicLog(updated);
+    }, 'Não foi possível registrar o pré-treino.');
   };
 
   // Totais consumidos
@@ -162,20 +243,19 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
   const netDeficitToday = actualTdeeToday - totalCaloriesConsumed;
   const plannedFullDeficit = (baseTdee - stats.targetCalories) + extraBurnKcal;
 
+  // Uma refeição aberta por vez, identificada pela ordem (estável) e não pelo id.
   const toggleMealCollapse = (mealOrder: number) => {
-    setCollapsedMealIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(mealOrder)) {
-        next.delete(mealOrder);
-      } else {
-        next.add(mealOrder);
-      }
-      return next;
-    });
+    setExpandedMealOrder((current) => (current === mealOrder ? -1 : mealOrder));
   };
 
   return (
     <div className="space-y-4 pb-28 max-w-lg mx-auto p-4 animate-in fade-in duration-300">
+      {errorMsg && (
+        <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-semibold flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
       {/* ========================================================= */}
       {/* 1. HERO NUTRITION DIAL (Gym Mobile App UI Kit Style)      */}
       {/* ========================================================= */}
@@ -401,13 +481,24 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
               <span className="text-[9px] font-mono text-cyan-400 font-bold">
                 {(waterDrunkMl / 1000).toFixed(1)}/{(stats.waterIntakeMl / 1000).toFixed(1)}L
               </span>
-              <button
-                type="button"
-                onClick={() => setWaterDrunkMl((w) => w + 250)}
-                className="px-1.5 py-0.5 rounded-lg bg-cyan-500/20 text-cyan-400 text-[10px] font-bold btn-tactile border border-cyan-500/30"
-              >
-                +250ml
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleWaterChange(-250)}
+                  disabled={waterDrunkMl <= 0}
+                  className="px-1.5 py-0.5 rounded-lg bg-[#060A14] text-slate-400 text-[10px] font-bold btn-tactile border border-white/10 disabled:opacity-40"
+                  title="Remover 250 ml"
+                >
+                  &minus;
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleWaterChange(250)}
+                  className="px-1.5 py-0.5 rounded-lg bg-cyan-500/20 text-cyan-400 text-[10px] font-bold btn-tactile border border-cyan-500/30"
+                >
+                  +250ml
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -466,7 +557,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
       <div className="space-y-3">
         {mealPlans.map((meal, index) => {
           const preset = HUMAN_MEAL_PRESETS[index] || { time: '18:00', icon: Sun };
-          const isCollapsed = collapsedMealIds.has(meal.order);
+          const isCollapsed = expandedMealOrder !== meal.order;
 
           return (
             <MealCard
@@ -483,29 +574,35 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
       </div>
 
       {/* Modais */}
-      <ShoppingListModal
-        isOpen={isShoppingOpen}
-        onClose={() => setIsShoppingOpen(false)}
-        mealPlans={mealPlans}
-      />
+      {isShoppingOpen && (
+        <ShoppingListModal
+          isOpen
+          onClose={() => setIsShoppingOpen(false)}
+          mealPlans={mealPlans}
+        />
+      )}
 
-      <ThermogenicsConfigModal
-        isOpen={isThermoConfigOpen}
-        onClose={() => setIsThermoConfigOpen(false)}
-        profile={profile}
-        onSaved={loadMealsAndProfile}
-      />
+      {isThermoConfigOpen && (
+        <ThermogenicsConfigModal
+          isOpen
+          onClose={() => setIsThermoConfigOpen(false)}
+          profile={profile}
+          stats={stats}
+          onSaved={loadMealsAndProfile}
+        />
+      )}
 
-      <DietBuilderModal
-        isOpen={isSmartWizardOpen}
-        onClose={() => setIsSmartWizardOpen(false)}
-        profile={profile}
-        stats={stats}
-        onApplyDiet={(plans) => {
-          setMealPlans(plans);
-          loadMealsAndProfile();
-        }}
-      />
+      {isSmartWizardOpen && (
+        <DietBuilderModal
+          isOpen
+          onClose={() => setIsSmartWizardOpen(false)}
+          profile={profile}
+          stats={stats}
+          onApplyDiet={() => {
+            loadMealsAndProfile();
+          }}
+        />
+      )}
     </div>
   );
 };

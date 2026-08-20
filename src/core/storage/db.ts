@@ -16,7 +16,16 @@ import {
   calculateCaffeineThermogenesis, 
   calculatePreWorkoutThermogenesis 
 } from '../math/thermogenics';
-import { TACO_FOOD_DATABASE, FOOD_DATABASE_MAP } from '../data/tacoDatabase';
+import { TACO_FOOD_DATABASE, FOOD_DATABASE_MAP, resetFoodDatabaseMap } from '../data/tacoDatabase';
+import {
+  SplitTemplateType,
+  buildRoutines,
+  templateForFrequency
+} from '../data/workoutTemplates';
+import { generateSmartMealPlan } from '../math/dietOptimizer';
+import { todayLocal, currentMonthPrefix, startOfWeekMonday, addDays, toLocalDateString } from '../utils/dateUtils';
+
+export type { SplitTemplateType };
 
 export class OmniFitDatabase extends Dexie {
   profiles!: EntityTable<UserProfile, 'id'>;
@@ -57,10 +66,12 @@ export function switchUserDb(userId: string) {
     // ignora erro ao fechar
   }
   currentDbInstance = new OmniFitDatabase(`OmniFit_user_${userId}`);
-}
 
-export function getCurrentUserDbInstance(): OmniFitDatabase {
-  return currentDbInstance;
+  // O mapa de alimentos é global e em memória. Sem esta limpeza, os alimentos
+  // personalizados da conta anterior continuariam visíveis na nova conta,
+  // furando o isolamento entre contêineres de usuário.
+  resetFoodDatabaseMap();
+  foodMapHydratedFor = null;
 }
 
 export const db: OmniFitDatabase = new Proxy({} as OmniFitDatabase, {
@@ -74,6 +85,9 @@ export const db: OmniFitDatabase = new Proxy({} as OmniFitDatabase, {
   }
 });
 
+/** Nome do banco cujos alimentos personalizados já estão no mapa em memória. */
+let foodMapHydratedFor: string | null = null;
+
 /**
  * Retorna todos os alimentos oficiais TACO + Alimentos Personalizados cadastrados.
  */
@@ -82,7 +96,21 @@ export async function getAllFoods(): Promise<FoodItem[]> {
   for (const c of custom) {
     FOOD_DATABASE_MAP.set(c.id, c);
   }
+  foodMapHydratedFor = currentDbInstance.name;
   return [...TACO_FOOD_DATABASE, ...custom];
+}
+
+/**
+ * Garante que os alimentos personalizados do usuário ativo estejam no mapa em
+ * memória antes de qualquer cálculo nutricional.
+ *
+ * Sem isto, telas que leem FOOD_DATABASE_MAP diretamente (resumo da dieta,
+ * cartões de refeição) ignoravam silenciosamente tudo que o usuário cadastrou
+ * à mão ou importou do Open Food Facts, contando 0 kcal para esses itens.
+ */
+export async function ensureFoodDatabaseReady(): Promise<void> {
+  if (foodMapHydratedFor === currentDbInstance.name) return;
+  await getAllFoods();
 }
 
 /**
@@ -132,7 +160,7 @@ export async function updateTodayThermogenics(
   preWorkoutDelta: number,
   bmr: number
 ): Promise<DailyThermogenicLog> {
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayLocal();
   const existing = await db.thermogenicLogs.where('date').equals(today).first();
 
   const currentCoffee = Math.max(0, (existing?.blackCoffeeCups || 0) + coffeeDelta);
@@ -170,7 +198,7 @@ export async function updateTodayThermogenics(
  * Obtém o log termogênico do dia.
  */
 export async function getTodayThermogenicLog(): Promise<DailyThermogenicLog> {
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayLocal();
   const existing = await db.thermogenicLogs.where('date').equals(today).first();
   if (existing) return existing;
 
@@ -180,6 +208,39 @@ export async function getTodayThermogenicLog(): Promise<DailyThermogenicLog> {
     preWorkoutDoses: 0,
     totalThermogenicCaloriesBurned: 0
   };
+}
+
+/**
+ * Consumo de água registrado hoje, em ml.
+ * Antes o valor iniciava em 1500 ml fixos na interface — o app abria afirmando
+ * que o usuário já havia bebido 1,5 L — e nunca era persistido.
+ */
+export async function getTodayWaterIntake(): Promise<number> {
+  const existing = await db.thermogenicLogs.where('date').equals(todayLocal()).first();
+  return existing?.waterMl || 0;
+}
+
+/**
+ * Grava o consumo de água do dia (nunca negativo).
+ */
+export async function setTodayWaterIntake(waterMl: number): Promise<number> {
+  const today = todayLocal();
+  const clamped = Math.max(0, Math.round(waterMl));
+  const existing = await db.thermogenicLogs.where('date').equals(today).first();
+
+  if (existing?.id) {
+    await db.thermogenicLogs.update(existing.id, { waterMl: clamped });
+  } else {
+    await db.thermogenicLogs.add({
+      date: today,
+      blackCoffeeCups: 0,
+      preWorkoutDoses: 0,
+      totalThermogenicCaloriesBurned: 0,
+      waterMl: clamped
+    });
+  }
+
+  return clamped;
 }
 
 /**
@@ -223,424 +284,61 @@ export async function getWeightHistory(): Promise<WeightLog[]> {
 }
 
 /**
- * Gera as fichas de treino automáticas recomendadas pelo motor algorítmico.
+ * Gera as fichas de treino recomendadas para a frequência semanal informada.
+ * Os dados das divisões vivem em core/data/workoutTemplates.ts.
  */
 export async function generateDefaultRoutines(frequencyDays: number): Promise<void> {
-  await db.routines.clear();
-
-  if (frequencyDays <= 3) {
-    await db.routines.bulkAdd([
-      {
-        name: 'Full Body A - Ênfase Peito & Quadríceps',
-        splitCode: 'A',
-        targetMuscles: ['chest', 'quadriceps', 'back', 'shoulders', 'abs'],
-        exercises: [
-          { exerciseId: 'agachamento_livre_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 120 },
-          { exerciseId: 'supino_reto_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 120 },
-          { exerciseId: 'puxada_alta_frente', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'elevacao_lateral_halteres', targetSets: 3, minReps: 12, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'abdominal_infra_paralela', targetSets: 3, minReps: 12, maxReps: 15, restSeconds: 60 }
-        ]
-      },
-      {
-        name: 'Full Body B - Ênfase Costas & Posteriores',
-        splitCode: 'B',
-        targetMuscles: ['back', 'hamstrings', 'chest', 'biceps', 'triceps'],
-        exercises: [
-          { exerciseId: 'stiff_barra', targetSets: 4, minReps: 8, maxReps: 10, restSeconds: 120 },
-          { exerciseId: 'remada_curvada_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 120 },
-          { exerciseId: 'supino_inclinado_halteres', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'rosca_direta_barra_w', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 60 },
-          { exerciseId: 'triceps_polia_corda', targetSets: 3, minReps: 10, maxReps: 15, restSeconds: 60 }
-        ]
-      },
-      {
-        name: 'Full Body C - Pernas & Superior Completo',
-        splitCode: 'C',
-        targetMuscles: ['quadriceps', 'glutes', 'shoulders', 'calves'],
-        exercises: [
-          { exerciseId: 'leg_press_45', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 120 },
-          { exerciseId: 'elevacao_pelvica_barra', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'desenvolvimento_halteres', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'panturrilha_em_pe_maquina', targetSets: 4, minReps: 12, maxReps: 15, restSeconds: 60 }
-        ]
-      }
-    ]);
-  } else if (frequencyDays === 4) {
-    await db.routines.bulkAdd([
-      {
-        name: 'Treino A - Superior (Upper 1)',
-        splitCode: 'A',
-        targetMuscles: ['chest', 'back', 'shoulders', 'triceps', 'biceps'],
-        exercises: [
-          { exerciseId: 'supino_reto_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 120 },
-          { exerciseId: 'remada_curvada_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 120 },
-          { exerciseId: 'desenvolvimento_halteres', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'triceps_polia_corda', targetSets: 3, minReps: 10, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'rosca_direta_barra_w', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 60 }
-        ]
-      },
-      {
-        name: 'Treino B - Inferior (Lower 1)',
-        splitCode: 'B',
-        targetMuscles: ['quadriceps', 'hamstrings', 'glutes', 'calves', 'abs'],
-        exercises: [
-          { exerciseId: 'agachamento_livre_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 150 },
-          { exerciseId: 'stiff_barra', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'cadeira_extensora', targetSets: 3, minReps: 10, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'mesa_flexora', targetSets: 3, minReps: 10, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'panturrilha_em_pe_maquina', targetSets: 4, minReps: 12, maxReps: 18, restSeconds: 60 }
-        ]
-      },
-      {
-        name: 'Treino C - Superior (Upper 2 - Foco Ombros & Dorsal)',
-        splitCode: 'C',
-        targetMuscles: ['back', 'chest', 'shoulders', 'biceps', 'triceps'],
-        exercises: [
-          { exerciseId: 'puxada_alta_frente', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'supino_inclinado_halteres', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'elevacao_lateral_halteres', targetSets: 4, minReps: 12, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'crucifixo_inverso_maquina', targetSets: 3, minReps: 12, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'triceps_testa_barra_w', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 75 },
-          { exerciseId: 'rosca_martelo_halteres', targetSets: 3, minReps: 10, maxReps: 12, restSeconds: 60 }
-        ]
-      },
-      {
-        name: 'Treino D - Inferior (Lower 2 - Foco Posterior & Glúteo)',
-        splitCode: 'D',
-        targetMuscles: ['hamstrings', 'glutes', 'quadriceps', 'abs'],
-        exercises: [
-          { exerciseId: 'leg_press_45', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 120 },
-          { exerciseId: 'elevacao_pelvica_barra', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'mesa_flexora', targetSets: 4, minReps: 10, maxReps: 12, restSeconds: 60 },
-          { exerciseId: 'abdominal_infra_paralela', targetSets: 4, minReps: 12, maxReps: 15, restSeconds: 60 }
-        ]
-      }
-    ]);
-  } else {
-    await db.routines.bulkAdd([
-      {
-        name: 'Treino A - Push (Peito, Ombros e Tríceps)',
-        splitCode: 'A',
-        targetMuscles: ['chest', 'shoulders', 'triceps'],
-        exercises: [
-          { exerciseId: 'supino_reto_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 120 },
-          { exerciseId: 'supino_inclinado_halteres', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'desenvolvimento_halteres', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'elevacao_lateral_halteres', targetSets: 4, minReps: 12, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'triceps_polia_corda', targetSets: 3, minReps: 10, maxReps: 15, restSeconds: 60 }
-        ]
-      },
-      {
-        name: 'Treino B - Pull (Costas, Deltoide Posterior e Bíceps)',
-        splitCode: 'B',
-        targetMuscles: ['back', 'shoulders', 'biceps'],
-        exercises: [
-          { exerciseId: 'puxada_alta_frente', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'remada_curvada_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 120 },
-          { exerciseId: 'crucifixo_inverso_maquina', targetSets: 3, minReps: 12, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'rosca_direta_barra_w', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 60 },
-          { exerciseId: 'rosca_martelo_halteres', targetSets: 3, minReps: 10, maxReps: 12, restSeconds: 60 }
-        ]
-      },
-      {
-        name: 'Treino C - Legs (Quadríceps, Posteriores, Glúteos e Panturrilhas)',
-        splitCode: 'C',
-        targetMuscles: ['quadriceps', 'hamstrings', 'glutes', 'calves', 'abs'],
-        exercises: [
-          { exerciseId: 'agachamento_livre_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 150 },
-          { exerciseId: 'leg_press_45', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 120 },
-          { exerciseId: 'stiff_barra', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'mesa_flexora', targetSets: 3, minReps: 10, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'panturrilha_em_pe_maquina', targetSets: 4, minReps: 12, maxReps: 18, restSeconds: 60 }
-        ]
-      }
-    ]);
-  }
+  await applySplitTemplate(templateForFrequency(frequencyDays));
 }
 
-export type SplitTemplateType = 'ppl' | 'upper_lower' | 'abcde' | 'abc_classic' | 'fullbody' | 'blank';
-
 /**
- * Aplica um modelo de divisão de treino completo (PPL, Upper/Lower, ABCDE, ABC Clássico, Full Body ou Em Branco).
+ * Aplica um modelo de divisão de treino completo, substituindo as fichas atuais.
  */
 export async function applySplitTemplate(template: SplitTemplateType): Promise<void> {
-  await db.routines.clear();
+  const routines = buildRoutines(template);
 
-  if (template === 'ppl') {
-    await db.routines.bulkAdd([
-      {
-        name: 'Treino A - Push (Peito, Ombros e Tríceps)',
-        splitCode: 'A',
-        targetMuscles: ['chest', 'shoulders', 'triceps'],
-        exercises: [
-          { exerciseId: 'supino_reto_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 120 },
-          { exerciseId: 'supino_inclinado_halteres', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'desenvolvimento_halteres', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'elevacao_lateral_halteres', targetSets: 4, minReps: 12, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'triceps_polia_corda', targetSets: 3, minReps: 10, maxReps: 15, restSeconds: 60 }
-        ]
-      },
-      {
-        name: 'Treino B - Pull (Costas, Deltoide Posterior e Bíceps)',
-        splitCode: 'B',
-        targetMuscles: ['back', 'shoulders', 'biceps'],
-        exercises: [
-          { exerciseId: 'puxada_alta_frente', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'remada_curvada_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 120 },
-          { exerciseId: 'crucifixo_inverso_maquina', targetSets: 3, minReps: 12, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'rosca_direta_barra_w', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 60 },
-          { exerciseId: 'rosca_martelo_halteres', targetSets: 3, minReps: 10, maxReps: 12, restSeconds: 60 }
-        ]
-      },
-      {
-        name: 'Treino C - Legs (Quadríceps, Posteriores, Glúteos e Panturrilhas)',
-        splitCode: 'C',
-        targetMuscles: ['quadriceps', 'hamstrings', 'glutes', 'calves', 'abs'],
-        exercises: [
-          { exerciseId: 'agachamento_livre_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 150 },
-          { exerciseId: 'leg_press_45', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 120 },
-          { exerciseId: 'stiff_barra', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'mesa_flexora', targetSets: 3, minReps: 10, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'panturrilha_em_pe_maquina', targetSets: 4, minReps: 12, maxReps: 18, restSeconds: 60 }
-        ]
-      }
-    ]);
-  } else if (template === 'upper_lower') {
-    await db.routines.bulkAdd([
-      {
-        name: 'Treino A - Superior 1 (Foco Peito e Costas)',
-        splitCode: 'A',
-        targetMuscles: ['chest', 'back', 'shoulders', 'triceps', 'biceps'],
-        exercises: [
-          { exerciseId: 'supino_reto_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 120 },
-          { exerciseId: 'remada_curvada_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 120 },
-          { exerciseId: 'desenvolvimento_halteres', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'triceps_polia_corda', targetSets: 3, minReps: 10, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'rosca_direta_barra_w', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 60 }
-        ]
-      },
-      {
-        name: 'Treino B - Inferior 1 (Foco Quadríceps e Panturrilhas)',
-        splitCode: 'B',
-        targetMuscles: ['quadriceps', 'hamstrings', 'glutes', 'calves'],
-        exercises: [
-          { exerciseId: 'agachamento_livre_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 150 },
-          { exerciseId: 'leg_press_45', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 120 },
-          { exerciseId: 'cadeira_extensora', targetSets: 3, minReps: 10, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'mesa_flexora', targetSets: 3, minReps: 10, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'panturrilha_em_pe_maquina', targetSets: 4, minReps: 12, maxReps: 18, restSeconds: 60 }
-        ]
-      },
-      {
-        name: 'Treino C - Superior 2 (Foco Ombros e Braços)',
-        splitCode: 'C',
-        targetMuscles: ['back', 'chest', 'shoulders', 'biceps', 'triceps'],
-        exercises: [
-          { exerciseId: 'puxada_alta_frente', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'supino_inclinado_halteres', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'elevacao_lateral_halteres', targetSets: 4, minReps: 12, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'triceps_testa_barra_w', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 75 },
-          { exerciseId: 'rosca_martelo_halteres', targetSets: 3, minReps: 10, maxReps: 12, restSeconds: 60 }
-        ]
-      },
-      {
-        name: 'Treino D - Inferior 2 (Foco Posterior, Glúteo e Abdômen)',
-        splitCode: 'D',
-        targetMuscles: ['hamstrings', 'glutes', 'quadriceps', 'abs'],
-        exercises: [
-          { exerciseId: 'stiff_barra', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'elevacao_pelvica_barra', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'mesa_flexora', targetSets: 4, minReps: 10, maxReps: 12, restSeconds: 60 },
-          { exerciseId: 'abdominal_infra_paralela', targetSets: 4, minReps: 12, maxReps: 15, restSeconds: 60 }
-        ]
-      }
-    ]);
-  } else if (template === 'abcde') {
-    await db.routines.bulkAdd([
-      {
-        name: 'Treino A - Peito & Abdômen',
-        splitCode: 'A',
-        targetMuscles: ['chest', 'abs'],
-        exercises: [
-          { exerciseId: 'supino_reto_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 120 },
-          { exerciseId: 'supino_inclinado_halteres', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'crucifixo_reto_halteres', targetSets: 3, minReps: 10, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'abdominal_infra_paralela', targetSets: 4, minReps: 12, maxReps: 15, restSeconds: 60 }
-        ]
-      },
-      {
-        name: 'Treino B - Costas & Trapézio',
-        splitCode: 'B',
-        targetMuscles: ['back', 'shoulders'],
-        exercises: [
-          { exerciseId: 'puxada_alta_frente', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'remada_curvada_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 120 },
-          { exerciseId: 'remada_baixa_triangulo', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'encolhimento_ombros_barra', targetSets: 4, minReps: 10, maxReps: 15, restSeconds: 60 }
-        ]
-      },
-      {
-        name: 'Treino C - Pernas Completo (Quadríceps e Posteriores)',
-        splitCode: 'C',
-        targetMuscles: ['quadriceps', 'hamstrings', 'glutes', 'calves'],
-        exercises: [
-          { exerciseId: 'agachamento_livre_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 150 },
-          { exerciseId: 'leg_press_45', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 120 },
-          { exerciseId: 'stiff_barra', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'cadeira_extensora', targetSets: 3, minReps: 10, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'mesa_flexora', targetSets: 3, minReps: 10, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'panturrilha_em_pe_maquina', targetSets: 4, minReps: 12, maxReps: 18, restSeconds: 60 }
-        ]
-      },
-      {
-        name: 'Treino D - Deltoides & Ombros Completo',
-        splitCode: 'D',
-        targetMuscles: ['shoulders'],
-        exercises: [
-          { exerciseId: 'desenvolvimento_halteres', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 90 },
-          { exerciseId: 'elevacao_lateral_halteres', targetSets: 4, minReps: 12, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'crucifixo_inverso_maquina', targetSets: 4, minReps: 12, maxReps: 15, restSeconds: 60 }
-        ]
-      },
-      {
-        name: 'Treino E - Braços (Bíceps e Tríceps)',
-        splitCode: 'E',
-        targetMuscles: ['biceps', 'triceps'],
-        exercises: [
-          { exerciseId: 'rosca_direta_barra_w', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 60 },
-          { exerciseId: 'rosca_martelo_halteres', targetSets: 3, minReps: 10, maxReps: 12, restSeconds: 60 },
-          { exerciseId: 'triceps_polia_corda', targetSets: 4, minReps: 10, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'triceps_testa_barra_w', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 75 },
-          { exerciseId: 'rosca_punho_barra', targetSets: 3, minReps: 12, maxReps: 15, restSeconds: 45 }
-        ]
-      }
-    ]);
-  } else if (template === 'abc_classic') {
-    await db.routines.bulkAdd([
-      {
-        name: 'Treino A - Peito, Tríceps e Abdômen',
-        splitCode: 'A',
-        targetMuscles: ['chest', 'triceps', 'abs'],
-        exercises: [
-          { exerciseId: 'supino_reto_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 120 },
-          { exerciseId: 'supino_inclinado_halteres', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'triceps_polia_corda', targetSets: 4, minReps: 10, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'triceps_testa_barra_w', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 75 },
-          { exerciseId: 'abdominal_infra_paralela', targetSets: 3, minReps: 12, maxReps: 15, restSeconds: 60 }
-        ]
-      },
-      {
-        name: 'Treino B - Costas, Bíceps e Trapézio',
-        splitCode: 'B',
-        targetMuscles: ['back', 'biceps', 'shoulders'],
-        exercises: [
-          { exerciseId: 'puxada_alta_frente', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'remada_curvada_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 120 },
-          { exerciseId: 'rosca_direta_barra_w', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 60 },
-          { exerciseId: 'rosca_martelo_halteres', targetSets: 3, minReps: 10, maxReps: 12, restSeconds: 60 },
-          { exerciseId: 'encolhimento_ombros_barra', targetSets: 3, minReps: 10, maxReps: 15, restSeconds: 60 }
-        ]
-      },
-      {
-        name: 'Treino C - Pernas Completo e Ombros',
-        splitCode: 'C',
-        targetMuscles: ['quadriceps', 'hamstrings', 'shoulders', 'calves'],
-        exercises: [
-          { exerciseId: 'agachamento_livre_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 150 },
-          { exerciseId: 'leg_press_45', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 120 },
-          { exerciseId: 'stiff_barra', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'desenvolvimento_halteres', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'elevacao_lateral_halteres', targetSets: 4, minReps: 12, maxReps: 15, restSeconds: 60 },
-          { exerciseId: 'panturrilha_em_pe_maquina', targetSets: 4, minReps: 12, maxReps: 18, restSeconds: 60 }
-        ]
-      }
-    ]);
-  } else if (template === 'fullbody') {
-    await db.routines.bulkAdd([
-      {
-        name: 'Full Body A - Ênfase Peito & Quadríceps',
-        splitCode: 'A',
-        targetMuscles: ['chest', 'quadriceps', 'back', 'shoulders', 'abs'],
-        exercises: [
-          { exerciseId: 'agachamento_livre_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 120 },
-          { exerciseId: 'supino_reto_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 120 },
-          { exerciseId: 'puxada_alta_frente', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'elevacao_lateral_halteres', targetSets: 3, minReps: 12, maxReps: 15, restSeconds: 60 }
-        ]
-      },
-      {
-        name: 'Full Body B - Ênfase Costas & Posteriores',
-        splitCode: 'B',
-        targetMuscles: ['back', 'hamstrings', 'chest', 'biceps', 'triceps'],
-        exercises: [
-          { exerciseId: 'stiff_barra', targetSets: 4, minReps: 8, maxReps: 10, restSeconds: 120 },
-          { exerciseId: 'remada_curvada_barra', targetSets: 4, minReps: 6, maxReps: 10, restSeconds: 120 },
-          { exerciseId: 'supino_inclinado_halteres', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'rosca_direta_barra_w', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 60 }
-        ]
-      },
-      {
-        name: 'Full Body C - Pernas & Superior Completo',
-        splitCode: 'C',
-        targetMuscles: ['quadriceps', 'glutes', 'shoulders', 'calves'],
-        exercises: [
-          { exerciseId: 'leg_press_45', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 120 },
-          { exerciseId: 'elevacao_pelvica_barra', targetSets: 3, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'desenvolvimento_halteres', targetSets: 4, minReps: 8, maxReps: 12, restSeconds: 90 },
-          { exerciseId: 'panturrilha_em_pe_maquina', targetSets: 4, minReps: 12, maxReps: 15, restSeconds: 60 }
-        ]
-      }
-    ]);
-  } else {
-    // Blank custom templates
-    await db.routines.bulkAdd([
-      {
-        name: 'Treino A (Personalizado)',
-        splitCode: 'A',
-        targetMuscles: ['chest', 'triceps'],
-        exercises: []
-      },
-      {
-        name: 'Treino B (Personalizado)',
-        splitCode: 'B',
-        targetMuscles: ['back', 'biceps'],
-        exercises: []
-      },
-      {
-        name: 'Treino C (Personalizado)',
-        splitCode: 'C',
-        targetMuscles: ['quadriceps', 'hamstrings'],
-        exercises: []
-      }
-    ]);
-  }
+  await db.transaction('rw', db.routines, async () => {
+    await db.routines.clear();
+    await db.routines.bulkAdd(routines);
+  });
 }
 
+
 /**
- * Cria uma nova ficha de treino customizada.
+ * Gera o próximo código de divisão (A..Z, depois A1, B1...), evitando os
+ * caracteres inválidos que `String.fromCharCode(65 + n)` produzia após o Z.
  */
-/**
- * Associa uma ficha a um dia específico da semana (0=Dom, 1=Seg... 6=Sáb).
- */
-export async function setRoutineDay(routineId: number, dayOfWeek: number): Promise<void> {
-  await db.routines.update(routineId, { dayOfWeek });
+function nextSplitCode(count: number): string {
+  const letter = String.fromCharCode(65 + (count % 26));
+  const cycle = Math.floor(count / 26);
+  return cycle === 0 ? letter : `${letter}${cycle}`;
 }
 
 /**
  * Cria uma nova ficha de treino customizada associada a um dia da semana.
  */
 export async function addNewRoutine(name?: string, splitCode?: string, dayOfWeek?: number): Promise<number> {
-  const count = await db.routines.count();
-  const nextLetter = String.fromCharCode(65 + count); // A, B, C, D, E, F...
-  const finalSplitCode = splitCode || nextLetter;
+  const existing = await db.routines.toArray();
+  const finalSplitCode = splitCode || nextSplitCode(existing.length);
   const finalName = name || `Treino ${finalSplitCode} (Personalizado)`;
+
+  let finalDay: number;
+  if (dayOfWeek !== undefined) {
+    finalDay = dayOfWeek;
+  } else {
+    // Escolhe o primeiro dia livre da semana (seg..dom). O cálculo antigo
+    // `(count % 7) + 1` gerava 7, que não é um dia válido (0..6), e colidia
+    // com dias já ocupados deixando fichas inacessíveis na interface.
+    const taken = new Set(existing.map((r) => r.dayOfWeek));
+    const preference = [1, 2, 3, 4, 5, 6, 0];
+    finalDay = preference.find((d) => !taken.has(d)) ?? 1;
+  }
 
   const id = await db.routines.add({
     name: finalName,
     splitCode: finalSplitCode,
-    dayOfWeek: dayOfWeek !== undefined ? dayOfWeek : (count % 7) + 1,
-    targetMuscles: ['chest', 'back', 'quadriceps'],
+    dayOfWeek: finalDay,
+    targetMuscles: [],
     exercises: []
   });
   return typeof id === 'number' ? id : 0;
@@ -654,7 +352,9 @@ export async function deleteRoutine(id: number): Promise<void> {
 }
 
 /**
- * Gera o cardápio padrão inicial de acordo com as metas calculadas e número de refeições.
+ * Gera o cardápio padrão inicial de acordo com as metas calculadas.
+ * Delega ao otimizador de dieta para não manter duas listas de alimentos
+ * paralelas (que já haviam divergido entre si).
  */
 export async function generateInitialMealPlans(
   mealsPerDay: number,
@@ -663,124 +363,72 @@ export async function generateInitialMealPlans(
   targetCarbs: number,
   targetFat: number
 ): Promise<void> {
-  await db.mealPlans.clear();
+  const plans = generateSmartMealPlan({
+    targetCalories,
+    targetProtein,
+    targetCarbs,
+    targetFat,
+    mealsPerDay,
+    budgetTier: 'standard',
+    focus: 'recomposition'
+  });
 
-  const mealNamesMap: Record<number, string[]> = {
-    2: ['Almoço Principal', 'Jantar Principal'],
-    3: ['Café da Manhã', 'Almoço Completo', 'Jantar'],
-    4: ['Café da Manhã', 'Almoço Completo', 'Lanche da Tarde', 'Jantar'],
-    5: ['Café da Manhã', 'Almoço Completo', 'Lanche da Tarde', 'Jantar', 'Ceia'],
-    6: ['Café da Manhã', 'Colação', 'Almoço Completo', 'Lanche da Tarde', 'Jantar', 'Ceia']
-  };
-
-  const names = mealNamesMap[mealsPerDay] || mealNamesMap[4];
-  const calPerMeal = Math.round(targetCalories / mealsPerDay);
-  const protPerMeal = Math.round(targetProtein / mealsPerDay);
-  const carbPerMeal = Math.round(targetCarbs / mealsPerDay);
-  const fatPerMeal = Math.round(targetFat / mealsPerDay);
-
-  const initialPlans: MealPlan[] = [];
-
-  for (let i = 0; i < names.length; i++) {
-    const name = names[i];
-    let portions: { foodId: string; grams: number; consumed: boolean }[] = [];
-
-    if (name.includes('Café') || name.includes('Colação')) {
-      portions = [
-        { foodId: 'ovo_galinha_cozido', grams: 100, consumed: false },
-        { foodId: 'pao_forma_integral', grams: 50, consumed: false },
-        { foodId: 'banana_prata', grams: 70, consumed: false }
-      ];
-    } else if (name.includes('Almoço') || name.includes('Jantar')) {
-      portions = [
-        { foodId: 'peito_frango_grelhado', grams: 130, consumed: false },
-        { foodId: 'arroz_branco_cozido', grams: 150, consumed: false },
-        { foodId: 'feijao_carioca_cozido', grams: 100, consumed: false },
-        { foodId: 'azeite_oliva_extra_virgem', grams: 8, consumed: false },
-        { foodId: 'brocolis_cozido', grams: 80, consumed: false }
-      ];
-    } else if (name.includes('Lanche') || name.includes('Pré-Treino')) {
-      portions = [
-        { foodId: 'iogurte_natural_desnatado', grams: 160, consumed: false },
-        { foodId: 'aveia_flocos', grams: 30, consumed: false },
-        { foodId: 'banana_prata', grams: 70, consumed: false },
-        { foodId: 'whey_protein_concentrado', grams: 20, consumed: false }
-      ];
-    } else {
-      portions = [
-        { foodId: 'queijo_cottage', grams: 100, consumed: false },
-        { foodId: 'castanha_para', grams: 10, consumed: false }
-      ];
-    }
-
-    initialPlans.push({
-      name,
-      order: i + 1,
-      targetCalories: calPerMeal,
-      targetProtein: protPerMeal,
-      targetCarbs: carbPerMeal,
-      targetFat: fatPerMeal,
-      portions
-    });
-  }
-
-  await db.mealPlans.bulkAdd(initialPlans);
+  await db.transaction('rw', db.mealPlans, async () => {
+    await db.mealPlans.clear();
+    await db.mealPlans.bulkAdd(plans);
+  });
 }
 
 /**
  * Retorna estatísticas consolidadas de frequência e consistência de treinos.
  */
 export async function getWorkoutFrequencyStats(targetWeeklyDays: number = 4) {
-  const sessions = await db.sessionLogs.where('completed').equals(1 as any).toArray().catch(async () => {
-    return (await db.sessionLogs.toArray()).filter((s) => s.completed);
-  });
+  // IndexedDB não indexa valores booleanos, então `where('completed').equals(1)`
+  // retornava sempre uma lista vazia (sem lançar erro, o que fazia o .catch de
+  // fallback nunca rodar) e zerava streak, aderência, tonelagem e calorias.
+  const sessions = (await db.sessionLogs.toArray()).filter((s) => s.completed);
 
   const completedDates = new Set(sessions.map((s) => s.date));
 
-  // Cálculo da semana atual (Segunda a Domingo)
-  const now = new Date();
-  const currentDayOfWeek = now.getDay(); // 0 Dom, 1 Seg...
-  const distanceToMonday = (currentDayOfWeek + 6) % 7;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - distanceToMonday);
-
+  // Cálculo da semana atual (Segunda a Domingo), em datas LOCAIS
+  const monday = startOfWeekMonday();
   const currentWeekDates: string[] = [];
   for (let i = 0; i < 7; i++) {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    currentWeekDates.push(d.toISOString().split('T')[0]);
+    currentWeekDates.push(toLocalDateString(addDays(monday, i)));
   }
 
   const thisWeekDaysCount = currentWeekDates.filter((dt) => completedDates.has(dt)).length;
 
   // Cálculo do mês atual
-  const currentMonthPrefix = now.toISOString().slice(0, 7); // YYYY-MM
-  const thisMonthDaysCount = Array.from(completedDates).filter((dt) => dt.startsWith(currentMonthPrefix)).length;
+  const monthPrefix = currentMonthPrefix();
+  const thisMonthDaysCount = Array.from(completedDates).filter((dt) => dt.startsWith(monthPrefix)).length;
+  const thisMonthSessions = sessions.filter((s) => s.date.startsWith(monthPrefix));
 
-  // Streak de dias ou consistência
+  // Streak de dias consecutivos (tolera um dia de descanso hoje)
   let currentStreak = 0;
-  const checkDate = new Date(now);
-  const todayStr = checkDate.toISOString().split('T')[0];
+  let checkDate = new Date();
+  const todayStr = todayLocal();
 
-  // Se treinou hoje ou ontem, o streak está vivo
   if (completedDates.has(todayStr)) {
     currentStreak++;
-    checkDate.setDate(checkDate.getDate() - 1);
+    checkDate = addDays(checkDate, -1);
   } else {
-    checkDate.setDate(checkDate.getDate() - 1);
-    if (completedDates.has(checkDate.toISOString().split('T')[0])) {
+    checkDate = addDays(checkDate, -1);
+    if (completedDates.has(toLocalDateString(checkDate))) {
       currentStreak++;
-      checkDate.setDate(checkDate.getDate() - 1);
+      checkDate = addDays(checkDate, -1);
     }
   }
 
-  while (completedDates.has(checkDate.toISOString().split('T')[0])) {
+  while (completedDates.has(toLocalDateString(checkDate))) {
     currentStreak++;
-    checkDate.setDate(checkDate.getDate() - 1);
+    checkDate = addDays(checkDate, -1);
   }
 
   const totalVolumeLiftedKg = sessions.reduce((acc, s) => acc + (s.totalVolumeLoadKg || 0), 0);
   const totalCaloriesBurned = sessions.reduce((acc, s) => acc + (s.caloriesBurnedEstimate || 0), 0);
+  const monthVolumeLiftedKg = thisMonthSessions.reduce((acc, s) => acc + (s.totalVolumeLoadKg || 0), 0);
+  const monthCaloriesBurned = thisMonthSessions.reduce((acc, s) => acc + (s.caloriesBurnedEstimate || 0), 0);
 
   return {
     sessions,
@@ -792,6 +440,8 @@ export async function getWorkoutFrequencyStats(targetWeeklyDays: number = 4) {
     weeklyAdherencePercent: Math.min(100, Math.round((thisWeekDaysCount / Math.max(1, targetWeeklyDays)) * 100)),
     totalCompletedSessions: sessions.length,
     totalVolumeLiftedKg,
-    totalCaloriesBurned
+    totalCaloriesBurned,
+    monthVolumeLiftedKg,
+    monthCaloriesBurned
   };
 }

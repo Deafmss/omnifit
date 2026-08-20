@@ -630,7 +630,7 @@ export const TACO_FOOD_DATABASE: FoodItem[] = [
     category: 'carb',
     servingName: '2 colheres de sopa (30g)',
     baseGrams: 100,
-    caloriesPer100g: 246,
+    caloriesPer100g: 375,
     proteinPer100g: 17.3,
     carbsPer100g: 66.2,
     fatPer100g: 7.0,
@@ -1088,7 +1088,7 @@ export const TACO_FOOD_DATABASE: FoodItem[] = [
     category: 'vegetable',
     servingName: '2 colheres de sopa (60g)',
     baseGrams: 100,
-    caloriesPer100g: 67,
+    caloriesPer100g: 33,
     proteinPer100g: 2.7,
     carbsPer100g: 4.2,
     fatPer100g: 0.6,
@@ -1998,3 +1998,14 @@ export const TACO_FOOD_DATABASE: FoodItem[] = [
 export const FOOD_DATABASE_MAP = new Map<string, FoodItem>(
   TACO_FOOD_DATABASE.map((item) => [item.id, item])
 );
+
+/**
+ * Remove os alimentos personalizados do mapa, mantendo apenas a base TACO.
+ * Chamado na troca de conta para que os itens de um usuário não vazem para outro.
+ */
+export function resetFoodDatabaseMap(): void {
+  FOOD_DATABASE_MAP.clear();
+  for (const item of TACO_FOOD_DATABASE) {
+    FOOD_DATABASE_MAP.set(item.id, item);
+  }
+}

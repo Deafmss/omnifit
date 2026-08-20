@@ -1,20 +1,29 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { UserProfile, MealPlan, WorkoutRoutine, WorkoutSessionLog, WeightLog, CheckInLog } from '../storage/types';
 
-const DEFAULT_SUPABASE_URL = 'https://zsyzudynremhcuchitgt.supabase.co';
-const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_byS2mSHnvPpQx5b84ZxH1g_3kv5Cp-B';
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
+// As credenciais vêm EXCLUSIVAMENTE das variáveis de ambiente.
+// Nunca reintroduza chaves literais aqui: elas ficam no histórico do git para
+// sempre e passam a valer para todos os ambientes (dev, preview e produção).
+// Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no .env local e no painel
+// da Vercel (Settings -> Environment Variables).
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 export const isSupabaseConfigured = (): boolean => {
   return Boolean(
-    supabaseUrl && 
-    supabaseAnonKey && 
+    supabaseUrl &&
+    supabaseAnonKey &&
     supabaseUrl.startsWith('https://') &&
     !supabaseUrl.includes('your-project-id')
   );
 };
+
+if (!isSupabaseConfigured() && import.meta.env.DEV) {
+  console.info(
+    '[OmniFit] Supabase não configurado. O app funciona 100% offline; ' +
+    'defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY para habilitar login com Google e sincronização.'
+  );
+}
 
 export const supabase: SupabaseClient | null = isSupabaseConfigured()
   ? createClient(supabaseUrl, supabaseAnonKey)
