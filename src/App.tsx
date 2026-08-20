@@ -14,6 +14,8 @@ import { ProgressDashboard } from './features/progress/ProgressDashboard';
 import { AuthScreen } from './features/auth/AuthScreen';
 import { PWAInstallPrompt } from './components/layout/PWAInstallPrompt';
 
+const TABS: ('diet' | 'workout' | 'progress')[] = ['diet', 'workout', 'progress'];
+
 export const App: React.FC = () => {
   const [account, setAccount] = useState<UserAccount | null>(null);
   const [profile, setProfile] = useState<UserProfile | undefined>(undefined);
@@ -27,6 +29,11 @@ export const App: React.FC = () => {
   // Espelha a conta ativa para o listener de OAuth, que roda fora do ciclo de render.
   const activeAccountIdRef = useRef<string | null>(null);
 
+  // Reconhecimento de gestos touch para swipe lateral (carrossel)
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const isSwipingHorizontal = useRef<boolean | null>(null);
+
   const activateAccount = async (acc: UserAccount) => {
     activeAccountIdRef.current = acc.id;
     setAccount(acc);
@@ -38,17 +45,12 @@ export const App: React.FC = () => {
     try {
       setLoading(true);
 
-      // 1. A escolha explícita do usuário vem primeiro. Se ele selecionou uma
-      //    conta local, ela tem prioridade sobre qualquer sessão de nuvem —
-      //    caso contrário uma sessão Google residual sequestraria o login local.
       const activeAcc = await getActiveAccount();
       if (activeAcc) {
         await activateAccount(activeAcc);
         return;
       }
 
-      // 2. Sem conta local ativa, tenta restaurar a sessão do Supabase
-      //    (é o caminho de volta do redirect do Google).
       if (supabase) {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
@@ -58,7 +60,6 @@ export const App: React.FC = () => {
         }
       }
 
-      // 3. Ninguém autenticado -> tela de login
       activeAccountIdRef.current = null;
       setAccount(null);
       setProfile(undefined);
@@ -82,7 +83,6 @@ export const App: React.FC = () => {
         setStats(calculatedStats);
         setIsOnboardingOpen(false);
       } else {
-        // Se ainda não calibrou o perfil, abre o Onboarding com o nome da conta pré-preenchido
         const accToUse = currentAcc || account;
         if (accToUse) {
           setProfile({
@@ -119,14 +119,10 @@ export const App: React.FC = () => {
     if (!supabase) return;
 
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // 'INITIAL_SESSION' já é tratado por initAuthAndData; reprocessá-lo aqui
-      // causaria carregamento duplicado do contêiner.
       if (event !== 'SIGNED_IN' || !session?.user) return;
 
       try {
         const oauthAccount = await processOAuthUser(session.user);
-        // Só troca de conta se realmente mudou (evita recarregar tudo a cada
-        // renovação de token).
         if (activeAccountIdRef.current === oauthAccount.id) return;
         await activateAccount(oauthAccount);
       } catch (err) {
@@ -154,6 +150,57 @@ export const App: React.FC = () => {
     setIsOnboardingOpen(false);
     setIsProfileModalOpen(false);
     setAuthError(null);
+  };
+
+  // Gestos de toque para alternar abas via Swipe
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    isSwipingHorizontal.current = null;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const diffX = currentX - touchStartX.current;
+    const diffY = currentY - touchStartY.current;
+
+    if (isSwipingHorizontal.current === null) {
+      if (Math.abs(diffX) > 8 || Math.abs(diffY) > 8) {
+        isSwipingHorizontal.current = Math.abs(diffX) > Math.abs(diffY);
+      }
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+
+    if (isSwipingHorizontal.current) {
+      const touchEndX = e.changedTouches[0].clientX;
+      const diffX = touchEndX - touchStartX.current;
+      const threshold = 45; // pixels para acionar o swipe
+
+      if (diffX < -threshold) {
+        // Deslizar para a esquerda -> Próxima aba
+        const currentIndex = TABS.indexOf(activeTab);
+        if (currentIndex < TABS.length - 1) {
+          setActiveTab(TABS[currentIndex + 1]);
+        }
+      } else if (diffX > threshold) {
+        // Deslizar para a direita -> Aba anterior
+        const currentIndex = TABS.indexOf(activeTab);
+        if (currentIndex > 0) {
+          setActiveTab(TABS[currentIndex - 1]);
+        }
+      }
+    }
+
+    touchStartX.current = null;
+    touchStartY.current = null;
+    isSwipingHorizontal.current = null;
   };
 
   if (loading) {
@@ -192,6 +239,8 @@ export const App: React.FC = () => {
     );
   }
 
+  const activeIndex = TABS.indexOf(activeTab);
+
   return (
     <div className="min-h-screen bg-[#050811] text-slate-100 flex flex-col selection:bg-[#84CC16] selection:text-slate-950 w-full max-w-full overflow-x-hidden">
       {/* Top Header */}
@@ -203,17 +252,38 @@ export const App: React.FC = () => {
         onOpenSettings={() => setIsProfileModalOpen(true)}
       />
 
-      {/* Main Content View */}
-      <main className="flex-1 w-full max-w-full overflow-x-hidden">
-        {activeTab === 'diet' && <DietOverview profile={profile} stats={stats} />}
-        {activeTab === 'workout' && <WorkoutSplitView profile={profile} />}
-        {activeTab === 'progress' && (
-          <ProgressDashboard
-            profile={profile}
-            stats={stats}
-            onProfileUpdated={() => loadUserData(account)}
-          />
-        )}
+      {/* Main Content View with Carousel Slide & Swipe Gestures */}
+      <main
+        className="flex-1 w-full max-w-full overflow-hidden"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        <div
+          className="flex w-[300%] transition-transform duration-300 ease-out will-change-transform"
+          style={{
+            transform: `translateX(-${(activeIndex * 100) / 3}%)`
+          }}
+        >
+          {/* Aba 0: Dieta */}
+          <div className="w-1/3 shrink-0">
+            <DietOverview profile={profile} stats={stats} />
+          </div>
+
+          {/* Aba 1: Treino */}
+          <div className="w-1/3 shrink-0">
+            <WorkoutSplitView profile={profile} />
+          </div>
+
+          {/* Aba 2: Progresso */}
+          <div className="w-1/3 shrink-0">
+            <ProgressDashboard
+              profile={profile}
+              stats={stats}
+              onProfileUpdated={() => loadUserData(account)}
+            />
+          </div>
+        </div>
       </main>
 
       {/* Bottom Navigation */}
