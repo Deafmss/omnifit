@@ -31,6 +31,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
     selectedDay,
     setSelectedDay,
     routines,
+    sessionLogs,
     currentRoutine,
     currentDayInfo,
     todayCompletedLog,
@@ -493,6 +494,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
           onClose={() => setIsAuditorOpen(false)}
           routines={routines}
           level={profile.experienceLevel}
+          sessionLogs={sessionLogs}
         />
       )}
 

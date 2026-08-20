@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
-import { Info } from 'lucide-react';
-import { WorkoutRoutine, ExperienceLevel } from '../../core/storage/types';
+import { Info, BatteryLow } from 'lucide-react';
+import { WorkoutRoutine, ExperienceLevel, WorkoutSessionLog } from '../../core/storage/types';
 import { EXERCISE_DATABASE_MAP } from '../../core/data/exerciseDatabase';
 import { auditWorkoutRoutines, MuscleAuditResult } from '../../core/math/trainingEngine';
+import { evaluateDeloadNeed } from '../../core/math/deloadAdvisor';
 import { Modal } from '../../components/ui/Modal';
 import { Badge } from '../../components/ui/Badge';
 
@@ -11,19 +12,27 @@ interface WorkoutAuditorModalProps {
   onClose: () => void;
   routines: WorkoutRoutine[];
   level: ExperienceLevel;
+  /** Histórico de sessões, usado para avaliar a necessidade de descarga. */
+  sessionLogs?: WorkoutSessionLog[];
 }
 
 export const WorkoutAuditorModal: React.FC<WorkoutAuditorModalProps> = ({
   isOpen,
   onClose,
   routines,
-  level
+  level,
+  sessionLogs = []
 }) => {
   // Memoizado: a auditoria varre todas as fichas e exercícios, e antes era
   // recalculada em cada renderização da tela de treino.
   const auditResults = useMemo(
     () => auditWorkoutRoutines(routines, EXERCISE_DATABASE_MAP, level),
     [routines, level]
+  );
+
+  const deload = useMemo(
+    () => evaluateDeloadNeed(auditResults, sessionLogs),
+    [auditResults, sessionLogs]
   );
 
   const getStatusBadge = (status: MuscleAuditResult['status']) => {
@@ -47,6 +56,33 @@ export const WorkoutAuditorModal: React.FC<WorkoutAuditorModalProps> = ({
       subtitle="Baseado no modelo de Volume Landmarks (Dr. Mike Israetel). Faixas gerais de referência, não prescrição individual."
     >
       <div className="space-y-4">
+        {/* Recomendação de descarga */}
+        {deload.urgency !== 'nenhuma' && (
+          <div
+            className={`p-3.5 rounded-2xl border space-y-1.5 text-xs ${
+              deload.urgency === 'recomendado'
+                ? 'bg-amber-500/10 border-amber-500/40'
+                : 'bg-[#090F1E] border-white/[0.12]'
+            }`}
+          >
+            <div
+              className={`flex items-center gap-2 font-bold ${
+                deload.urgency === 'recomendado' ? 'text-amber-400' : 'text-slate-300'
+              }`}
+            >
+              <BatteryLow className="w-4 h-4" />
+              <span>
+                {deload.urgency === 'recomendado'
+                  ? 'Semana de descarga recomendada'
+                  : 'Atenção à recuperação'}
+              </span>
+            </div>
+
+            <p className="text-slate-300 leading-relaxed">{deload.reason}</p>
+            <p className="text-slate-400 leading-relaxed">{deload.advice}</p>
+          </div>
+        )}
+
         {/* Info Card */}
         <div className="p-3.5 rounded-2xl bg-[#090F1E] border border-white/[0.08] text-xs text-slate-300 space-y-1.5">
           <div className="flex items-center gap-2 text-[#A3E635] font-bold">
