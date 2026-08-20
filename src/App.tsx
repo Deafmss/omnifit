@@ -12,6 +12,7 @@ import { DietOverview } from './features/diet/DietOverview';
 import { WorkoutSplitView } from './features/workout/WorkoutSplitView';
 import { ProgressDashboard } from './features/progress/ProgressDashboard';
 import { AuthScreen } from './features/auth/AuthScreen';
+import { PWAInstallPrompt } from './components/layout/PWAInstallPrompt';
 
 export const App: React.FC = () => {
   const [account, setAccount] = useState<UserAccount | null>(null);
@@ -150,18 +151,26 @@ export const App: React.FC = () => {
 
   // Se não estiver logado em nenhuma conta -> exibe a tela de Autenticação
   if (!account) {
-    return <AuthScreen onAuthenticated={handleAuthenticated} />;
+    return (
+      <>
+        <AuthScreen onAuthenticated={handleAuthenticated} />
+        <PWAInstallPrompt />
+      </>
+    );
   }
 
   // Se a conta não foi calibrada -> exibe o Onboarding Wizard
   if (isOnboardingOpen || !profile || !stats) {
     return (
-      <OnboardingWizard
-        initialProfile={profile}
-        onComplete={() => {
-          loadUserData(account);
-        }}
-      />
+      <>
+        <OnboardingWizard
+          initialProfile={profile}
+          onComplete={() => {
+            loadUserData(account);
+          }}
+        />
+        <PWAInstallPrompt />
+      </>
     );
   }
 
@@ -204,6 +213,9 @@ export const App: React.FC = () => {
         }}
         onLogout={handleLogout}
       />
+
+      {/* PWA Floating Install Prompt */}
+      <PWAInstallPrompt />
     </div>
   );
 };

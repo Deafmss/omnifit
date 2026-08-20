@@ -7,26 +7,27 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
+      includeAssets: ['favicon.svg', 'pwa-icon.svg'],
       manifest: {
         name: 'OmniFit - Dieta, Treino & Metabolismo',
         short_name: 'OmniFit',
-        description: 'PWA Científico de Nutrição e Periodização de Treino',
-        theme_color: '#070D18',
-        background_color: '#070D18',
+        description: 'Nutrição de Precisão & Biomecânica Adaptativa',
+        theme_color: '#050811',
+        background_color: '#050811',
         display: 'standalone',
         orientation: 'portrait',
         icons: [
           {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
+            src: 'favicon.svg',
+            sizes: '192x192 512x512',
+            type: 'image/svg+xml',
+            purpose: 'any'
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'pwa-icon.svg',
             sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable'
+            type: 'image/svg+xml',
+            purpose: 'maskable'
           }
         ]
       }
