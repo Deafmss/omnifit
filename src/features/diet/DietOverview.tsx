@@ -514,42 +514,50 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
       {/* 3. BARRA DE AÇÕES DA DIETA                                */}
       {/* ========================================================= */}
       <div className="flex items-center justify-between gap-2 px-1">
-        <span className="text-sm font-extrabold text-white font-display">
-          Refeições
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-extrabold text-white font-display">
+            Refeições
+          </span>
+          <span className="px-2 py-0.5 rounded-full bg-[#060A14] border border-white/10 text-[10px] font-mono font-bold text-slate-400">
+            {mealPlans.length}
+          </span>
+        </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           {/* Diet Builder Button */}
           <button
             onClick={() => setIsSmartWizardOpen(true)}
-            className="px-3 py-1.5 rounded-xl bg-[#0E1628] border border-white/[0.08] text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile shadow-sm"
+            className="h-8.5 px-2.5 sm:px-3 rounded-xl bg-[#090F1E] border border-white/[0.08] hover:border-[#84CC16]/40 text-slate-200 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile shadow-sm whitespace-nowrap"
             title="Montador de Cardápio"
           >
-            <UtensilsCrossed className="w-3.5 h-3.5 text-[#A3E635]" />
-            <span>Montar Cardápio</span>
+            <UtensilsCrossed className="w-3.5 h-3.5 text-[#A3E635] shrink-0" />
+            <span>Cardápio</span>
           </button>
 
+          {/* Shopping List Button */}
           <button
             onClick={() => setIsShoppingOpen(true)}
-            className="p-1.5 px-2.5 rounded-xl bg-[#090F1E] border border-white/[0.08] hover:border-[#84CC16]/40 text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile shadow-sm"
+            className="h-8.5 px-2.5 sm:px-3 rounded-xl bg-[#090F1E] border border-white/[0.08] hover:border-[#84CC16]/40 text-slate-200 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 btn-tactile shadow-sm whitespace-nowrap"
             title="Lista de Compras da Semana"
           >
-            <ShoppingBag className="w-3.5 h-3.5 text-[#A3E635]" />
-            <span className="hidden sm:inline">Compras</span>
+            <ShoppingBag className="w-3.5 h-3.5 text-[#A3E635] shrink-0" />
+            <span className="hidden xs:inline sm:inline">Compras</span>
           </button>
 
+          {/* Add Meal Button */}
           <button
             onClick={handleAddMeal}
-            className="p-1.5 px-2.5 rounded-xl bg-[#84CC16]/20 border border-[#84CC16]/40 text-[#A3E635] hover:bg-[#84CC16]/30 text-xs font-bold transition-all flex items-center gap-1 btn-tactile shadow-sm"
+            className="h-8.5 px-2.5 sm:px-3 rounded-xl btn-lime text-slate-950 text-xs font-black transition-all flex items-center gap-1 btn-tactile shadow-sm whitespace-nowrap"
             title="Adicionar Refeição Extra"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />
             <span>Refeição</span>
           </button>
 
+          {/* Reset Button */}
           <button
             onClick={handleResetDay}
-            className="p-1.5 rounded-xl bg-[#090F1E] border border-white/[0.08] text-slate-400 hover:text-white btn-tactile"
+            className="h-8.5 w-8.5 rounded-xl bg-[#090F1E] border border-white/[0.08] hover:border-white/20 text-slate-400 hover:text-white flex items-center justify-center btn-tactile shrink-0"
             title="Resetar Checks do Dia"
           >
             <RotateCcw className="w-3.5 h-3.5" />

@@ -98,7 +98,7 @@ export const Modal: React.FC<ModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200 w-screen h-screen"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200 w-screen h-screen"
       onClick={onClose}
     >
       <div
@@ -107,7 +107,7 @@ export const Modal: React.FC<ModalProps> = ({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="w-full max-w-lg bg-[#090F1E] border border-white/[0.12] rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] sm:max-h-[85vh] flex flex-col animate-in slide-in-from-bottom-6 sm:slide-in-from-bottom-2 duration-300 outline-none box-border"
+        className="w-full max-w-lg bg-[#090F1E] border border-white/[0.12] rounded-3xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col animate-in zoom-in-95 sm:slide-in-from-bottom-2 duration-200 outline-none box-border my-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

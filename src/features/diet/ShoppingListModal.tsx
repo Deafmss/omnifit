@@ -57,16 +57,16 @@ export const ShoppingListModal: React.FC<ShoppingListModalProps> = ({
     >
       <div className="space-y-4">
         {/* Days Filter */}
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-slate-300 uppercase tracking-wider font-mono">
-            Período da Lista:
+        <div className="space-y-2">
+          <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest font-mono block">
+            Período da Lista
           </span>
-          <div className="flex gap-1.5">
+          <div className="grid grid-cols-4 gap-1.5">
             {[3, 7, 14, 30].map((d) => (
               <button
                 key={d}
                 onClick={() => handleDaysChange(d)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold font-mono transition-all ${
+                className={`py-2 rounded-xl text-xs font-bold font-mono transition-all text-center ${
                   days === d
                     ? 'btn-lime text-slate-950 shadow-sm font-black'
                     : 'bg-[#060A14] text-slate-400 border border-white/5 hover:text-white'
