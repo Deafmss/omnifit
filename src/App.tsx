@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile, MetabolicStats } from './core/storage/types';
 import { getActiveProfile, switchUserDb } from './core/storage/db';
 import { calculateMetabolicStats } from './core/math/metabolism';
-import { getActiveAccount, logout, UserAccount } from './core/auth/authService';
+import { getActiveAccount, logout, processOAuthUser, UserAccount } from './core/auth/authService';
+import { supabase } from './core/supabase/supabaseClient';
 import { Header } from './components/layout/Header';
 import { BottomNav } from './components/layout/BottomNav';
 import { ProfileModal } from './components/layout/ProfileModal';
@@ -86,6 +87,25 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     initAuthAndData();
+
+    if (supabase) {
+      const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user) {
+          try {
+            const oauthAccount = await processOAuthUser(session.user);
+            setAccount(oauthAccount);
+            switchUserDb(oauthAccount.id);
+            await loadUserData(oauthAccount);
+          } catch (err) {
+            console.error('Erro ao processar login OAuth:', err);
+          }
+        }
+      });
+
+      return () => {
+        authListener.subscription.unsubscribe();
+      };
+    }
   }, []);
 
   const handleAuthenticated = async (newAccount: UserAccount) => {

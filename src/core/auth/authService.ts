@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
+import { supabase } from '../supabase/supabaseClient';
 
 export interface UserAccount {
   id: string; // Unique ID (e.g. email or generated uuid)
@@ -175,4 +176,62 @@ export async function deleteAccount(userId: string): Promise<void> {
   // Deleta o banco IndexedDB do contêiner do usuário
   const dbName = `OmniFit_user_${userId}`;
   await Dexie.delete(dbName);
+}
+
+/**
+ * Inicia o fluxo de autenticação com o Google via Supabase OAuth.
+ */
+export async function signInWithGoogle(): Promise<void> {
+  if (!supabase) {
+    throw new Error('Supabase não está configurado com as chaves de API.');
+  }
+
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: window.location.origin
+    }
+  });
+
+  if (error) {
+    throw new Error(error.message || 'Erro ao conectar com o Google.');
+  }
+}
+
+/**
+ * Processa a sessão de retorno do OAuth (Google) e sincroniza a conta localmente.
+ */
+export async function processOAuthUser(user: { id: string; email?: string; user_metadata?: any }): Promise<UserAccount> {
+  const cleanEmail = (user.email || '').trim().toLowerCase();
+  const name = user.user_metadata?.full_name || user.user_metadata?.name || cleanEmail.split('@')[0] || 'Usuário Google';
+  const id = `usr_g_${user.id}`;
+
+  const existing = await authDb.accounts.get(id);
+  const now = new Date().toISOString();
+
+  if (existing) {
+    await authDb.accounts.update(id, { lastLoginAt: now, name });
+    localStorage.setItem(ACTIVE_ACCOUNT_KEY, id);
+    return {
+      ...existing,
+      name,
+      lastLoginAt: now
+    };
+  }
+
+  const avatarColor = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
+  const account: UserAccount = {
+    id,
+    name,
+    email: cleanEmail,
+    passwordHash: 'oauth_google_authenticated',
+    avatarColor,
+    createdAt: now,
+    lastLoginAt: now
+  };
+
+  await authDb.accounts.add(account);
+  localStorage.setItem(ACTIVE_ACCOUNT_KEY, account.id);
+
+  return account;
 }
