@@ -3,6 +3,33 @@
 > Documento de handoff. Descreve o estado atual do projeto, o que já foi corrigido
 > e o que falta fazer. Autocontido: não depende de contexto de conversa anterior.
 
+## ⏩ RETOMADA RÁPIDA
+
+**Estado:** working tree limpo, tudo commitado. `210 testes` passando, `tsc` limpo,
+`eslint` 0 erros, `vite build` ok.
+
+**Lista 1 (correções): CONCLUÍDA** — seção 3.
+**Lista 2 (novos recursos): 1 de 12 feito** — seção 4.
+
+**Último trabalho:** progressão de carga por exercício + recordes pessoais
+(`core/math/strengthProgress.ts`, `features/progress/StrengthProgressChart.tsx`),
+commit `f161350`.
+
+**PRÓXIMO PASSO** — seguir a ordem da seção 4.1, que usa dados que o app já tem:
+1. **Sugestão de deload** — `trainingEngine.auditWorkoutRoutines()` já calcula o MRV
+   por grupo muscular; falta avisar quando o volume estourar o teto.
+2. **Copiar refeição de outro dia** — a tabela `foodLogs` já tem o histórico por data.
+3. **Templates de refeição** ("meu café da manhã padrão").
+
+**Duas pendências que só o dono do projeto resolve** — seção 5: rotacionar a chave do
+Supabase e configurar as variáveis de ambiente na Vercel. Sem a segunda, o login com
+Google quebra em produção.
+
+**Nada foi publicado ainda.** Os commits estão apenas locais; a Vercel só recebe as
+mudanças após `git push`.
+
+---
+
 ---
 
 ## 1. Contexto do projeto
@@ -170,14 +197,17 @@ realista — mas muda as metas de todos os usuários. Decidir antes de implement
 
 ### 4.1 Dados que o app já tem (melhor retorno, esforço pequeno)
 
-1. **Gráfico de progressão de carga por exercício.** `sessionLogs.exerciseLogs` já
-   guarda peso e reps de cada série. Existe `getLastWeightByExercise()` em `db.ts` —
-   estender para série histórica. Espelhar o padrão visual de
-   `features/progress/IntakeHistoryChart.tsx`.
-2. **Recordes pessoais (PRs).** Mesmos dados: maior carga e maior volume por
-   exercício, com aviso de novo recorde ao concluir o treino.
-3. **Sugestão automática de deload.** `trainingEngine.auditWorkoutRoutines()` já
-   calcula MRV por grupo muscular; falta avisar quando o volume estourar.
+1. ~~**Gráfico de progressão de carga por exercício.**~~ ✅ FEITO (commit `f161350`)
+   `core/math/strengthProgress.ts` + `features/progress/StrengthProgressChart.tsx`,
+   com 22 testes. Mostra carga de topo, 1RM estimado (Epley), tendência e variação
+   percentual, com seletor de exercício na aba Treinos.
+2. ~~**Recordes pessoais (PRs).**~~ ✅ FEITO (mesmo commit)
+   `detectPersonalRecords()` compara a sessão com todo o histórico anterior. Aviso
+   aparece ao concluir o treino, mostrando a marca superada. A primeira execução de
+   um exercício não conta como recorde.
+3. **Sugestão automática de deload.** ← PRÓXIMO
+   `trainingEngine.auditWorkoutRoutines()` já calcula MRV por grupo muscular; falta
+   avisar quando o volume estourar o teto recuperável.
 4. **Copiar refeição de outro dia / duplicar refeição.** O diário (`foodLogs`) já tem
    o histórico por data.
 5. **Refeições salvas como template** ("meu café da manhã padrão").
