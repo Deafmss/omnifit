@@ -201,7 +201,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
   };
 
   return (
-    <div className="space-y-4 pb-24 max-w-lg mx-auto p-4 animate-in fade-in duration-300">
+    <div className="space-y-4 pb-24 max-w-lg mx-auto p-4">
       {errorMsg && (
         <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-semibold">
           {errorMsg}
@@ -246,9 +246,9 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
                   setSelectedDay(d.dayIndex);
                   setIsEditingTitle(false);
                 }}
-                className={`py-2 px-1 rounded-2xl flex flex-col items-center justify-between transition-all relative btn-tactile ${
+                className={`py-2 px-1 rounded-2xl flex flex-col items-center justify-between transition-colors relative btn-tactile ${
                   isSelected
-                    ? 'btn-lime text-slate-950 shadow-md font-black scale-[1.03]'
+                    ? 'btn-lime text-slate-950 shadow-md font-black'
                     : isDayCompleted
                     ? 'bg-[#84CC16]/15 border border-[#84CC16]/40 text-[#A3E635]'
                     : isToday
@@ -287,7 +287,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
 
       {/* Routine Detail Card or Rest Day Card */}
       {currentRoutine ? (
-        <div className="space-y-3.5 animate-in fade-in duration-200">
+        <div className="space-y-3.5">
           {/* Main Action Banner */}
           <div className="p-5 rounded-3xl bg-[#090F1E] border border-white/[0.09] shadow-xl space-y-4 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -363,7 +363,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
 
             {/* Celebratory Completed Banner for Today */}
             {selectedDay === todayDayIndex && todayCompletedLog && (
-              <div className="p-3.5 rounded-2xl bg-[#84CC16]/15 border border-[#84CC16]/40 flex items-center justify-between animate-in zoom-in-95">
+              <div className="p-3.5 rounded-2xl bg-[#84CC16]/15 border border-[#84CC16]/40 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-xl bg-[#84CC16] text-slate-950 flex items-center justify-center font-black shadow-md">
                     <Check className="w-5 h-5 stroke-[3]" />
@@ -474,7 +474,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
                   >
                     <div className="flex items-center gap-3.5 min-w-0 flex-1">
                       {/* Exercise Thumbnail Icon */}
-                      <div className="w-11 h-11 rounded-2xl bg-[#060A14] border border-white/[0.08] flex items-center justify-center text-xs font-black text-slate-300 font-mono shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+                      <div className="w-11 h-11 rounded-2xl bg-[#060A14] border border-white/[0.08] flex items-center justify-center text-xs font-black text-slate-300 font-mono shrink-0 shadow-inner">
                         <Dumbbell className="w-5 h-5 text-[#A3E635]" />
                       </div>
 
@@ -531,7 +531,7 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
         </div>
       ) : (
         /* Rest Day (Descanso & Recuperação) Card */
-        <div className="p-8 rounded-3xl bg-[#090F1E] border border-white/[0.08] shadow-xl text-center space-y-4 animate-in fade-in">
+        <div className="p-8 rounded-3xl bg-[#090F1E] border border-white/[0.08] shadow-xl text-center space-y-4">
           <div className="w-14 h-14 rounded-3xl bg-[#84CC16]/15 border border-[#84CC16]/30 text-[#A3E635] flex items-center justify-center mx-auto shadow-inner">
             <BedDouble className="w-7 h-7" />
           </div>
