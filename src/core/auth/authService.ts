@@ -186,10 +186,15 @@ export async function signInWithGoogle(): Promise<void> {
     throw new Error('Supabase não está configurado com as chaves de API.');
   }
 
+  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+  const redirectUrl = currentOrigin && !currentOrigin.includes('localhost')
+    ? `${currentOrigin}/`
+    : 'https://omnifit-gules.vercel.app/';
+
   const { error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: window.location.origin
+      redirectTo: redirectUrl
     }
   });
 

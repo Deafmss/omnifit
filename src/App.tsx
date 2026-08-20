@@ -25,6 +25,20 @@ export const App: React.FC = () => {
   const initAuthAndData = async () => {
     try {
       setLoading(true);
+
+      // 1. Verifica se há uma sessão ativa do Supabase (ex: Google OAuth redirect)
+      if (supabase) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const oauthAccount = await processOAuthUser(session.user);
+          setAccount(oauthAccount);
+          switchUserDb(oauthAccount.id);
+          await loadUserData(oauthAccount);
+          return;
+        }
+      }
+
+      // 2. Verifica a sessão local salva
       const activeAcc = await getActiveAccount();
       if (!activeAcc) {
         setAccount(null);
