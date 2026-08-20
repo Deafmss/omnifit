@@ -7,7 +7,10 @@ import {
   WorkoutSessionLog, 
   WeightLog, 
   CheckInLog,
-  DailyThermogenicLog
+  DailyThermogenicLog,
+  DailyFoodLog,
+  DailyIntakeSummary,
+  AppMeta
 } from './types';
 import { calculateWeightEMA } from '../math/adaptiveEngine';
 import { 
@@ -24,7 +27,7 @@ import {
 } from '../data/workoutTemplates';
 import { generateSmartMealPlan } from '../math/dietOptimizer';
 import { todayLocal, currentMonthPrefix, startOfWeekMonday, addDays, toLocalDateString } from '../utils/dateUtils';
-import { pushProfile, pushMealPlans, pushRoutines, pushWeightLog } from '../supabase/cloudSync';
+import { pushProfile, pushMealPlans, pushRoutines, pushWeightLog, pushFoodLogs } from '../supabase/cloudSync';
 
 export type { SplitTemplateType };
 
@@ -37,6 +40,8 @@ export class OmniFitDatabase extends Dexie {
   weightLogs!: EntityTable<WeightLog, 'id'>;
   checkInLogs!: EntityTable<CheckInLog, 'id'>;
   thermogenicLogs!: EntityTable<DailyThermogenicLog, 'id'>;
+  foodLogs!: EntityTable<DailyFoodLog, 'id'>;
+  appMeta!: EntityTable<AppMeta, 'key'>;
 
   constructor(dbName: string = 'OmniFitDatabase') {
     super(dbName);
@@ -49,6 +54,20 @@ export class OmniFitDatabase extends Dexie {
       weightLogs: '++id, date',
       checkInLogs: '++id, date',
       thermogenicLogs: '++id, date'
+    });
+
+    // v3: diário alimentar com data + metadados do contêiner.
+    this.version(3).stores({
+      profiles: '++id, isCalibrated, createdAt',
+      mealPlans: '++id, order, name',
+      customFoods: 'id, name, category',
+      routines: '++id, splitCode, name',
+      sessionLogs: '++id, date, completed',
+      weightLogs: '++id, date',
+      checkInLogs: '++id, date',
+      thermogenicLogs: '++id, date',
+      foodLogs: '++id, date, foodId, [date+foodId]',
+      appMeta: 'key'
     });
   }
 }
@@ -70,7 +89,7 @@ export function switchUserDb(userId: string) {
 
   try {
     currentDbInstance.close();
-  } catch (e) {
+  } catch {
     // ignora erro ao fechar
   }
   currentDbInstance = new OmniFitDatabase(targetName);
@@ -84,10 +103,12 @@ export function switchUserDb(userId: string) {
 
 export const db: OmniFitDatabase = new Proxy({} as OmniFitDatabase, {
   get(_, prop) {
-    const target = currentDbInstance as any;
+    // O Proxy repassa qualquer membro do Dexie (tabelas, transaction, etc.);
+    // o índice genérico permite o acesso dinâmico sem recorrer a `any`.
+    const target = currentDbInstance as unknown as Record<string | symbol, unknown>;
     const value = target[prop];
     if (typeof value === 'function') {
-      return value.bind(target);
+      return (value as (...args: unknown[]) => unknown).bind(currentDbInstance);
     }
     return value;
   }
@@ -199,7 +220,9 @@ export async function updateTodayThermogenics(
     date: today,
     blackCoffeeCups: currentCoffee,
     preWorkoutDoses: currentPreWorkout,
-    totalThermogenicCaloriesBurned: totalBurn
+    totalThermogenicCaloriesBurned: totalBurn,
+    coffeeBurnKcal: coffeeBurn,
+    preWorkoutBurnKcal: preWorkoutBurn
   };
 
   if (existing?.id) {
@@ -225,6 +248,249 @@ export async function getTodayThermogenicLog(): Promise<DailyThermogenicLog> {
     preWorkoutDoses: 0,
     totalThermogenicCaloriesBurned: 0
   };
+}
+
+// ============================================================================
+// DIÁRIO ALIMENTAR
+//
+// O campo `consumed` das porções representa apenas o dia corrente. O registro
+// permanente fica aqui, em `foodLogs`, com data. Sem esta separação o app não
+// tinha histórico algum do que foi comido, e as marcações do dia anterior
+// continuavam válidas — o usuário abria o app e ele afirmava que o dia inteiro
+// já havia sido consumido.
+// ============================================================================
+
+const LAST_ACTIVE_DATE_KEY = 'lastActiveDate';
+
+/** Lê um metadado do contêiner do usuário. */
+export async function getMeta(key: string): Promise<string | null> {
+  const row = await db.appMeta.get(key);
+  return row?.value ?? null;
+}
+
+/** Grava um metadado do contêiner do usuário. */
+export async function setMeta(key: string, value: string): Promise<void> {
+  await db.appMeta.put({ key, value });
+}
+
+/**
+ * Registra o consumo de uma porção no diário do dia.
+ * Idempotente por (data + alimento + refeição): marcar duas vezes não duplica.
+ */
+export async function logFoodConsumption(
+  date: string,
+  mealName: string,
+  mealOrder: number,
+  foodId: string,
+  grams: number
+): Promise<void> {
+  await ensureFoodDatabaseReady();
+  const food = FOOD_DATABASE_MAP.get(foodId);
+  if (!food) return;
+
+  const factor = Math.max(0, grams) / 100;
+
+  const entry: DailyFoodLog = {
+    date,
+    foodId,
+    foodName: food.name,
+    grams,
+    // Snapshot: o alimento pode ser editado ou apagado depois, e o histórico
+    // precisa continuar refletindo o que foi comido de fato.
+    calories: Math.round(food.caloriesPer100g * factor),
+    protein: Number((food.proteinPer100g * factor).toFixed(1)),
+    carbs: Number((food.carbsPer100g * factor).toFixed(1)),
+    fat: Number((food.fatPer100g * factor).toFixed(1)),
+    fiber: Number((food.fiberPer100g * factor).toFixed(1)),
+    mealName,
+    mealOrder,
+    loggedAt: new Date().toISOString()
+  };
+
+  await db.transaction('rw', db.foodLogs, async () => {
+    const existing = await db.foodLogs
+      .where('[date+foodId]')
+      .equals([date, foodId])
+      .filter((log) => log.mealOrder === mealOrder)
+      .first();
+
+    if (existing?.id) {
+      await db.foodLogs.update(existing.id, entry);
+    } else {
+      await db.foodLogs.add(entry);
+    }
+  });
+
+  // Espelha o dia inteiro na nuvem (o cloudSync agrupa com debounce).
+  void pushFoodLogs(await getFoodLogForDate(date));
+}
+
+/** Remove o registro de consumo (usuário desmarcou a porção). */
+export async function unlogFoodConsumption(
+  date: string,
+  mealOrder: number,
+  foodId: string
+): Promise<void> {
+  const matches = await db.foodLogs
+    .where('[date+foodId]')
+    .equals([date, foodId])
+    .filter((log) => log.mealOrder === mealOrder)
+    .toArray();
+
+  const ids = matches.map((m) => m.id).filter((id): id is number => id !== undefined);
+  if (ids.length > 0) {
+    await db.foodLogs.bulkDelete(ids);
+  }
+}
+
+/** Apaga o diário de uma data (usado ao reiniciar o dia). */
+export async function clearFoodLogForDate(date: string): Promise<void> {
+  await db.foodLogs.where('date').equals(date).delete();
+}
+
+/** Todos os itens consumidos numa data. */
+export async function getFoodLogForDate(date: string): Promise<DailyFoodLog[]> {
+  return (await db.foodLogs.where('date').equals(date).toArray()).sort(
+    (a, b) => a.mealOrder - b.mealOrder
+  );
+}
+
+/** Consolidado nutricional de uma data. */
+export async function getIntakeSummaryForDate(date: string): Promise<DailyIntakeSummary> {
+  const logs = await getFoodLogForDate(date);
+
+  return logs.reduce<DailyIntakeSummary>(
+    (acc, log) => ({
+      date,
+      calories: acc.calories + log.calories,
+      protein: Number((acc.protein + log.protein).toFixed(1)),
+      carbs: Number((acc.carbs + log.carbs).toFixed(1)),
+      fat: Number((acc.fat + log.fat).toFixed(1)),
+      fiber: Number((acc.fiber + log.fiber).toFixed(1)),
+      itemCount: acc.itemCount + 1
+    }),
+    { date, calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, itemCount: 0 }
+  );
+}
+
+/**
+ * Histórico consolidado dos últimos N dias (mais antigo primeiro).
+ * Dias sem registro entram com zeros, para que médias e gráficos não fiquem
+ * com lacunas silenciosas.
+ */
+export async function getIntakeHistory(days: number = 14): Promise<DailyIntakeSummary[]> {
+  const today = new Date();
+  const totalDays = Math.max(1, days);
+  const firstDate = toLocalDateString(addDays(today, -(totalDays - 1)));
+
+  const logs = await db.foodLogs.where('date').aboveOrEqual(firstDate).toArray();
+
+  const byDate = new Map<string, DailyIntakeSummary>();
+  for (const log of logs) {
+    const current = byDate.get(log.date) || {
+      date: log.date,
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      fiber: 0,
+      itemCount: 0
+    };
+
+    current.calories += log.calories;
+    current.protein = Number((current.protein + log.protein).toFixed(1));
+    current.carbs = Number((current.carbs + log.carbs).toFixed(1));
+    current.fat = Number((current.fat + log.fat).toFixed(1));
+    current.fiber = Number((current.fiber + log.fiber).toFixed(1));
+    current.itemCount += 1;
+
+    byDate.set(log.date, current);
+  }
+
+  const history: DailyIntakeSummary[] = [];
+  for (let i = totalDays - 1; i >= 0; i--) {
+    const date = toLocalDateString(addDays(today, -i));
+    history.push(
+      byDate.get(date) || {
+        date,
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        fiber: 0,
+        itemCount: 0
+      }
+    );
+  }
+
+  return history;
+}
+
+/**
+ * Aderência real à dieta nos últimos dias, comparando o consumo registrado com
+ * a meta calórica. Só considera dias que têm registro — dias em branco
+ * significam "não anotou", não "não comeu".
+ *
+ * Substitui o slider em que o usuário chutava a própria aderência.
+ */
+export async function calculateDietAdherence(
+  targetCalories: number,
+  days: number = 14
+): Promise<{ adherencePercent: number; daysLogged: number; averageCalories: number }> {
+  const history = await getIntakeHistory(days);
+  const logged = history.filter((day) => day.itemCount > 0);
+
+  if (logged.length === 0 || targetCalories <= 0) {
+    return { adherencePercent: 0, daysLogged: 0, averageCalories: 0 };
+  }
+
+  const averageCalories = Math.round(
+    logged.reduce((acc, day) => acc + day.calories, 0) / logged.length
+  );
+
+  // Aderência = quão próximo do alvo, penalizando desvio em qualquer direção.
+  const dailyScores = logged.map((day) => {
+    const deviation = Math.abs(day.calories - targetCalories) / targetCalories;
+    return Math.max(0, 1 - deviation);
+  });
+
+  const adherencePercent = Math.round(
+    (dailyScores.reduce((acc, score) => acc + score, 0) / dailyScores.length) * 100
+  );
+
+  return { adherencePercent, daysLogged: logged.length, averageCalories };
+}
+
+/**
+ * Virada do dia: se o último uso foi em outra data, zera as marcações de
+ * consumo das refeições. O histórico já está preservado em `foodLogs`.
+ *
+ * Devolve true quando houve virada, para a interface poder recarregar.
+ */
+export async function ensureDailyRollover(): Promise<boolean> {
+  const today = todayLocal();
+  const lastActive = await getMeta(LAST_ACTIVE_DATE_KEY);
+
+  if (lastActive === today) return false;
+
+  const plans = await db.mealPlans.toArray();
+  const needsReset = plans.some((plan) => plan.portions.some((p) => p.consumed));
+
+  if (needsReset) {
+    await db.transaction('rw', db.mealPlans, async () => {
+      for (const plan of plans) {
+        if (!plan.id) continue;
+        if (!plan.portions.some((p) => p.consumed)) continue;
+
+        await db.mealPlans.update(plan.id, {
+          portions: plan.portions.map((p) => ({ ...p, consumed: false }))
+        });
+      }
+    });
+  }
+
+  await setMeta(LAST_ACTIVE_DATE_KEY, today);
+  return needsReset;
 }
 
 /**

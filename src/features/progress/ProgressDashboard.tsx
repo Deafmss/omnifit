@@ -14,6 +14,7 @@ import { db, getWeightHistory, logWeightEntry } from '../../core/storage/db';
 import { CheckInModal } from './CheckInModal';
 import { WeightTrendChart } from './WeightTrendChart';
 import { VolumeTonnageChart } from './VolumeTonnageChart';
+import { IntakeHistoryChart } from './IntakeHistoryChart';
 import { WorkoutFrequencyTracker } from '../workout/WorkoutFrequencyTracker';
 
 interface ProgressDashboardProps {
@@ -266,6 +267,9 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
       {/* ABA 3: MÉTRICAS & PESAGENS */}
       {activeTab === 'body' && (
         <div className="space-y-4 animate-in fade-in duration-200">
+          {/* Histórico do diário alimentar */}
+          <IntakeHistoryChart targetCalories={stats.targetCalories} days={14} />
+
           {/* Fast Daily Weight Logger */}
           <div className="p-4 rounded-3xl bg-[#090F1E] border border-white/[0.08] shadow-sm space-y-3">
             <div className="flex items-center justify-between">

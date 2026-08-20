@@ -12,6 +12,8 @@ import {
 import { MealPlan, FoodItem } from '../../core/storage/types';
 import { FOOD_DATABASE_MAP } from '../../core/data/tacoDatabase';
 import { calculatePortionsTotal, calculateFoodNutrients, formatHouseholdPortion } from '../../core/math/macroSolver';
+import { logFoodConsumption, unlogFoodConsumption } from '../../core/storage/db';
+import { todayLocal } from '../../core/utils/dateUtils';
 import { MacroSwapModal } from './MacroSwapModal';
 import { FoodPickerModal } from './FoodPickerModal';
 
@@ -74,11 +76,34 @@ export const MealCard: React.FC<MealCardProps> = ({
 
   // As porções são recriadas por map: mutar `[...meal.portions][index]` alterava
   // o objeto original dentro da prop `meal`.
-  const togglePortionConsumed = (index: number) => {
+  /**
+   * Marca/desmarca a porção e registra no diário alimentar do dia.
+   * O `consumed` da porção é só o estado visual de hoje; o histórico
+   * permanente vai para a tabela de logs, com data.
+   */
+  const togglePortionConsumed = async (index: number) => {
+    const portion = meal.portions[index];
+    if (!portion) return;
+
+    const willBeConsumed = !portion.consumed;
+
     const newPortions = meal.portions.map((p, i) =>
-      i === index ? { ...p, consumed: !p.consumed } : p
+      i === index ? { ...p, consumed: willBeConsumed } : p
     );
     onUpdateMeal({ ...meal, portions: newPortions });
+
+    try {
+      const today = todayLocal();
+      if (willBeConsumed) {
+        await logFoodConsumption(today, meal.name, meal.order, portion.foodId, portion.grams);
+      } else {
+        await unlogFoodConsumption(today, meal.order, portion.foodId);
+      }
+    } catch (err) {
+      // A marcação visual já foi aplicada; o diário é complementar e não deve
+      // bloquear a interação se a escrita falhar.
+      console.error('Não foi possível registrar o consumo no diário:', err);
+    }
   };
 
   const handleApplySwap = (newFoodId: string, newGrams: number) => {
@@ -290,6 +315,8 @@ export const MealCard: React.FC<MealCardProps> = ({
                     <button
                       type="button"
                       onClick={() => togglePortionConsumed(idx)}
+                      aria-pressed={portion.consumed}
+                      aria-label={`${portion.consumed ? 'Desmarcar' : 'Marcar'} ${food.name} como consumido`}
                       className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all shrink-0 ${
                         portion.consumed
                           ? 'bg-[#84CC16] border-[#84CC16] text-slate-950'

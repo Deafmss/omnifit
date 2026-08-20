@@ -92,6 +92,14 @@ export interface DailyThermogenicLog {
   blackCoffeeCups: number; // 1 cup = 150ml ~100mg cafeina
   preWorkoutDoses: number; // 1 dose = formula (400mg cafeina + taurina + beta-alanina)
   totalThermogenicCaloriesBurned: number;
+  /**
+   * Queima estimada separada por fonte. Existe para que a interface apenas
+   * EXIBA os valores em vez de recalculá-los: os cartões de café e pré-treino
+   * tinham a fórmula antiga embutida no JSX (um deles com "87" cravado
+   * literalmente), e mostravam números que não somavam o total.
+   */
+  coffeeBurnKcal?: number;
+  preWorkoutBurnKcal?: number;
   /** Água ingerida no dia, em ml. Persistida para não zerar a cada recarga. */
   waterMl?: number;
 }
@@ -116,7 +124,57 @@ export interface FoodItem {
 export interface MealFoodPortion {
   foodId: string;
   grams: number;
+  /**
+   * Marcação do DIA CORRENTE apenas. O registro permanente de consumo vive em
+   * `DailyFoodLog`: este campo é zerado na virada do dia, e sem isso o app
+   * abria no dia seguinte afirmando que o usuário já havia comido tudo.
+   */
   consumed: boolean;
+}
+
+/**
+ * Uma porção efetivamente consumida, com data. É o diário alimentar do app.
+ *
+ * Os valores nutricionais são gravados como SNAPSHOT no momento do consumo:
+ * o alimento pode ser editado ou excluído depois, e o histórico precisa
+ * continuar refletindo o que foi comido de fato.
+ */
+export interface DailyFoodLog {
+  id?: number;
+  /** Data local no formato YYYY-MM-DD. */
+  date: string;
+  foodId: string;
+  foodName: string;
+  grams: number;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  /** Nome e ordem da refeição no momento do consumo. */
+  mealName: string;
+  mealOrder: number;
+  loggedAt: string;
+}
+
+/** Consolidado de um dia do diário alimentar. */
+export interface DailyIntakeSummary {
+  date: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  itemCount: number;
+}
+
+/**
+ * Metadados internos do contêiner do usuário (chave/valor).
+ * Usado para saber qual foi o último dia de uso e disparar a virada do dia.
+ */
+export interface AppMeta {
+  key: string;
+  value: string;
 }
 
 export interface MealPlan {
