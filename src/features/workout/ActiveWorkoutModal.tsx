@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import confetti from 'canvas-confetti';
 import {
   X,
@@ -36,8 +37,7 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [restSecondsRemaining, setRestSecondsRemaining] = useState<number | null>(null);
 
-  // Inicializa logs das séries. A carga real de cada exercício é carregada do
-  // histórico logo abaixo, para não recomeçar de um valor fixo a cada treino.
+  // Inicializa logs das séries. A carga real de cada exercício é carregada do histórico.
   const [exerciseLogs, setExerciseLogs] = useState<WorkoutExerciseLog[]>(() =>
     routine.exercises.map((item) => ({
       exerciseId: item.exerciseId,
@@ -71,10 +71,8 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
             return {
               ...log,
               sets: log.sets.map((set) => {
-                // Só preenche o que ainda está zerado: se o usuário começou a
-                // digitar antes do histórico chegar, o que ele digitou vence.
-                const current = Number(set.weightKg) || 0;
-                return current > 0 ? set : { ...set, weightKg: previous };
+                const currentWeight = Number(set.weightKg) || 0;
+                return currentWeight > 0 ? set : { ...set, weightKg: previous };
               })
             };
           })
@@ -95,7 +93,7 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
   const [isFinished, setIsFinished] = useState<boolean>(false);
   const [summaryData, setSummaryData] = useState<{ calories: number; volume: number } | null>(null);
 
-  // Timer da sessão (para de contar quando o treino é finalizado)
+  // Timer da sessão
   useEffect(() => {
     if (!isOpen || isFinished) return;
 
@@ -123,6 +121,18 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
 
     return () => clearInterval(restInterval);
   }, [restSecondsRemaining]);
+
+  // Trava scroll do body
+  useEffect(() => {
+    if (!isOpen) return;
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -193,12 +203,7 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
 
     setProgressionAlerts(alerts);
 
-    // Uma única duração para tudo: antes as calorias usavam o piso de 10 min
-    // enquanto o log gravava a duração sem piso, então um treino de 40 s era
-    // salvo como "0 min" com as calorias de 10 minutos.
     const durationMin = Math.max(1, Math.round(elapsedSeconds / 60));
-
-    // MET médio real da ficha, em vez de 6,0 fixo para qualquer treino.
     const routineMets = averageMetsForRoutine(routine, EXERCISE_DATABASE_MAP);
     const caloriesBurned = estimateWorkoutCalories(durationMin, profile.weightKg, routineMets);
 
@@ -213,20 +218,16 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
       completed: true
     };
 
-    // A celebração só acontece DEPOIS de a gravação ter dado certo: antes o
-    // confete e a tela de sucesso apareciam mesmo com o treino perdido.
     setIsSaving(true);
     setSaveError(null);
 
     try {
       const savedId = (await db.sessionLogs.add(session)) as number;
-      // Espelha na nuvem quando há sessão do Supabase; falha de rede não
-      // invalida o registro local.
       void pushSessionLog({ ...session, id: savedId });
     } catch (err) {
       console.error('Erro ao salvar o treino:', err);
       setSaveError(
-        'Não foi possível salvar este treino. Não feche a tela: verifique o armazenamento do navegador e tente novamente.'
+        'Não foi possível salvar este treino. Verifique o armazenamento do navegador e tente novamente.'
       );
       return;
     } finally {
@@ -249,23 +250,23 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
     return `${String(mins).padStart(2, '0')}:${String(remaining).padStart(2, '0')}`;
   };
 
-  return (
-    <div className="fixed inset-0 z-50 bg-[#050811] flex flex-col animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-50 bg-[#050811] flex flex-col animate-in fade-in duration-200 w-screen h-screen">
       {/* Top Header */}
-      <div className="bg-[#090F1E]/95 backdrop-blur-2xl border-b border-white/[0.08] px-4 py-3.5 flex items-center justify-between safe-top">
-        <div className="flex items-center gap-3">
+      <div className="bg-[#090F1E]/95 backdrop-blur-2xl border-b border-white/[0.08] px-4 py-3.5 flex items-center justify-between safe-top shrink-0">
+        <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 btn-tactile"
+            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/10 btn-tactile shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
-          <div>
-            <h2 className="text-sm font-extrabold text-white font-display truncate max-w-[200px]">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-extrabold text-white font-display truncate">
               {routine.name}
             </h2>
             <div className="flex items-center gap-2 text-xs font-mono text-emerald-400 font-bold mt-0.5">
-              <Clock className="w-3.5 h-3.5" />
+              <Clock className="w-3.5 h-3.5 shrink-0" />
               <span>{formatTimer(elapsedSeconds)}</span>
             </div>
           </div>
@@ -274,7 +275,7 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
         <button
           onClick={handleFinishWorkout}
           disabled={isSaving}
-          className="px-4 py-2 rounded-xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-lg shadow-lime-500/20 flex items-center gap-1.5 disabled:opacity-60"
+          className="px-4 py-2 rounded-xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-lg shadow-lime-500/20 flex items-center gap-1.5 disabled:opacity-60 shrink-0"
         >
           <Trophy className="w-4 h-4" />
           <span>{isSaving ? 'Salvando...' : 'Concluir Treino'}</span>
@@ -282,21 +283,21 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
       </div>
 
       {saveError && (
-        <div className="mx-4 mt-3 p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-semibold flex items-start gap-2">
+        <div className="mx-4 mt-3 p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-semibold flex items-start gap-2 shrink-0">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
           <span>{saveError}</span>
         </div>
       )}
 
       {isLoadingHistory && (
-        <div className="mx-4 mt-3 p-2.5 rounded-2xl bg-[#090F1E] border border-white/[0.06] text-[11px] font-mono text-slate-400 text-center">
+        <div className="mx-4 mt-3 p-2.5 rounded-2xl bg-[#090F1E] border border-white/[0.06] text-[11px] font-mono text-slate-400 text-center shrink-0">
           Carregando suas cargas anteriores...
         </div>
       )}
 
       {/* Rest Timer Floating Bar */}
       {restSecondsRemaining !== null && (
-        <div className="bg-[#090F1E] border-b border-white/10 px-4 py-2.5 flex items-center justify-between animate-in slide-in-from-top-2">
+        <div className="bg-[#090F1E] border-b border-white/10 px-4 py-2.5 flex items-center justify-between animate-in slide-in-from-top-2 shrink-0">
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4 text-[#A3E635] animate-pulse" />
             <span className="text-xs font-bold text-slate-200">Tempo de Descanso:</span>
@@ -324,7 +325,7 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
 
       {/* Progression Alerts Banner */}
       {progressionAlerts.length > 0 && (
-        <div className="p-4 bg-amber-950/40 border-b border-amber-500/30 space-y-2">
+        <div className="p-4 bg-amber-950/40 border-b border-amber-500/30 space-y-2 shrink-0">
           <div className="flex items-center gap-2 text-amber-400 font-extrabold text-xs uppercase tracking-wider font-mono">
             <Zap className="w-4 h-4 fill-amber-400" />
             <span>Sobrecarga Progressiva Conquistada!</span>
@@ -337,8 +338,8 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
         </div>
       )}
 
-      {/* Exercise List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3.5 pb-20 max-w-lg mx-auto w-full">
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3.5 pb-28 max-w-lg mx-auto w-full overscroll-contain">
         {exerciseLogs.map((exLog, exIdx) => {
           const exercise = EXERCISE_DATABASE_MAP.get(exLog.exerciseId);
           const routineEx = routine.exercises[exIdx];
@@ -428,35 +429,35 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
         })}
       </div>
 
-      {/* Finished Summary Modal Overlay */}
+      {/* Finished Summary Dialog */}
       {isFinished && summaryData && (
-        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-sm rounded-3xl bg-[#090F1E] border border-[#84CC16]/30 p-6 text-center space-y-4 shadow-2xl animate-in zoom-in-95">
-            <div className="w-16 h-16 rounded-3xl bg-[#84CC16]/20 border border-[#84CC16]/40 text-[#A3E635] flex items-center justify-center mx-auto">
+        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-4">
+          <div className="w-full max-w-sm p-6 rounded-3xl bg-[#090F1E] border border-white/10 shadow-2xl text-center space-y-4 animate-in zoom-in-95">
+            <div className="w-16 h-16 rounded-3xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto shadow-inner">
               <Trophy className="w-8 h-8" />
             </div>
 
             <div className="space-y-1">
-              <h3 className="text-xl font-extrabold text-white font-display">
-                Treino Finalizado com Sucesso!
+              <h3 className="text-xl font-black text-white font-display">
+                Treino Concluído! 🏆
               </h3>
               <p className="text-xs text-slate-400">
-                Sessão registrada e computada no seu balanço diário.
+                Os dados foram sincronizados e calculados na sua termogênese diária.
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 py-2 font-mono">
+            <div className="grid grid-cols-2 gap-3 py-2">
               <div className="p-3 rounded-2xl bg-[#060A14] border border-white/5 space-y-1">
                 <Flame className="w-4 h-4 text-amber-400 mx-auto" />
-                <span className="text-[10px] text-slate-500 block">Gasto Estimado</span>
-                <strong className="text-base font-bold text-white">
-                  {summaryData.calories} kcal
+                <span className="text-[10px] text-slate-400 font-mono block">Gasto Estimado</span>
+                <strong className="text-base font-bold text-emerald-400">
+                  +{summaryData.calories} kcal
                 </strong>
               </div>
 
               <div className="p-3 rounded-2xl bg-[#060A14] border border-white/5 space-y-1">
                 <Zap className="w-4 h-4 text-[#A3E635] mx-auto" />
-                <span className="text-[10px] text-slate-500 block">Volume Total</span>
+                <span className="text-[10px] text-slate-400 font-mono block">Volume Total</span>
                 <strong className="text-base font-bold text-white">
                   {summaryData.volume} kg
                 </strong>
@@ -472,6 +473,9 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 };
+
+export default ActiveWorkoutModal;

@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -22,12 +23,14 @@ let openModalCount = 0;
 function lockBodyScroll() {
   openModalCount += 1;
   document.body.style.overflow = 'hidden';
+  document.body.style.touchAction = 'none';
 }
 
 function unlockBodyScroll() {
   openModalCount = Math.max(0, openModalCount - 1);
   if (openModalCount === 0) {
     document.body.style.overflow = '';
+    document.body.style.touchAction = '';
   }
 }
 
@@ -93,9 +96,9 @@ export const Modal: React.FC<ModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200 w-screen h-screen"
       onClick={onClose}
     >
       <div
@@ -104,30 +107,33 @@ export const Modal: React.FC<ModalProps> = ({
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="w-full max-w-lg bg-[#0A101F]/95 backdrop-blur-2xl border border-white/[0.12] rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[92vh] flex flex-col animate-in slide-in-from-bottom-6 sm:slide-in-from-bottom-2 duration-300 outline-none"
+        className="w-full max-w-lg bg-[#090F1E] border border-white/[0.12] rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] sm:max-h-[85vh] flex flex-col animate-in slide-in-from-bottom-6 sm:slide-in-from-bottom-2 duration-300 outline-none box-border"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.08] bg-[#060B17]/60">
-          <div>
-            <h3 id={titleId} className="text-base font-extrabold text-white font-display tracking-tight">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-white/[0.08] bg-[#060A14]/80 shrink-0">
+          <div className="min-w-0 flex-1 pr-2">
+            <h3 id={titleId} className="text-base font-extrabold text-white font-display tracking-tight truncate">
               {title}
             </h3>
-            {subtitle && <p className="text-xs text-slate-400 mt-0.5 font-sans">{subtitle}</p>}
+            {subtitle && <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5 font-sans truncate">{subtitle}</p>}
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Fechar"
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/[0.08] transition-colors btn-tactile"
+            className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/[0.08] transition-colors btn-tactile shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto space-y-4">{children}</div>
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-4 overscroll-contain flex-1">
+          {children}
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
