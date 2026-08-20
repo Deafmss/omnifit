@@ -17,6 +17,7 @@ import {
   evaluateDoubleProgression,
   averageMetsForRoutine
 } from '../../core/math/trainingEngine';
+import { detectPersonalRecords, PersonalRecord } from '../../core/math/strengthProgress';
 import { db, getLastWeightByExercise } from '../../core/storage/db';
 import { pushSessionLog } from '../../core/supabase/cloudSync';
 import { todayLocal } from '../../core/utils/dateUtils';
@@ -92,6 +93,7 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
   const [progressionAlerts, setProgressionAlerts] = useState<string[]>([]);
   const [isFinished, setIsFinished] = useState<boolean>(false);
   const [summaryData, setSummaryData] = useState<{ calories: number; volume: number } | null>(null);
+  const [newRecords, setNewRecords] = useState<PersonalRecord[]>([]);
 
   // Timer da sessão
   useEffect(() => {
@@ -224,6 +226,11 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
     try {
       const savedId = (await db.sessionLogs.add(session)) as number;
       void pushSessionLog({ ...session, id: savedId });
+
+      // Recordes: compara esta sessão com todo o histórico anterior a ela.
+      // A primeira execução de um exercício não conta — é o ponto de partida.
+      const todas = await db.sessionLogs.toArray();
+      setNewRecords(detectPersonalRecords(todas, { ...session, id: savedId }));
     } catch (err) {
       console.error('Erro ao salvar o treino:', err);
       setSaveError(
@@ -324,6 +331,39 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
       )}
 
       {/* Progression Alerts Banner */}
+      {newRecords.length > 0 && (
+        <div className="mx-4 mt-3 p-3 rounded-2xl bg-[#84CC16]/10 border border-[#84CC16]/40 space-y-1.5">
+          <div className="flex items-center gap-2 text-[#A3E635] text-xs font-black font-display uppercase tracking-wider">
+            <Trophy className="w-4 h-4" />
+            <span>
+              {newRecords.length === 1 ? 'Novo recorde pessoal!' : `${newRecords.length} novos recordes!`}
+            </span>
+          </div>
+          {newRecords.map((record, i) => {
+            const nome = EXERCISE_DATABASE_MAP.get(record.exerciseId)?.name || record.exerciseId;
+            const rotulo =
+              record.type === 'weight'
+                ? 'carga'
+                : record.type === 'volume'
+                ? 'volume na sessão'
+                : '1RM estimado';
+            const unidade = record.type === 'volume' ? 'kg de volume' : 'kg';
+
+            return (
+              <p key={`${record.exerciseId}-${record.type}-${i}`} className="text-[11px] text-slate-200 font-mono">
+                <strong className="text-white">{nome}</strong> — {rotulo}:{' '}
+                <strong className="text-[#A3E635]">
+                  {record.value} {unidade}
+                </strong>
+                {record.previousValue !== undefined && (
+                  <span className="text-slate-500"> (antes {record.previousValue})</span>
+                )}
+              </p>
+            );
+          })}
+        </div>
+      )}
+
       {progressionAlerts.length > 0 && (
         <div className="p-4 bg-amber-950/40 border-b border-amber-500/30 space-y-2 shrink-0">
           <div className="flex items-center gap-2 text-amber-400 font-extrabold text-xs uppercase tracking-wider font-mono">

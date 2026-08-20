@@ -15,6 +15,7 @@ import { CheckInModal } from './CheckInModal';
 import { WeightTrendChart } from './WeightTrendChart';
 import { VolumeTonnageChart } from './VolumeTonnageChart';
 import { IntakeHistoryChart } from './IntakeHistoryChart';
+import { StrengthProgressChart } from './StrengthProgressChart';
 import { WorkoutFrequencyTracker } from '../workout/WorkoutFrequencyTracker';
 
 interface ProgressDashboardProps {
@@ -215,6 +216,8 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
       {activeTab === 'workouts' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           <WorkoutFrequencyTracker targetWeeklyDays={profile.trainingDaysPerWeek || 4} />
+          <StrengthProgressChart sessions={sessionLogs} />
+
           <VolumeTonnageChart sessions={sessionLogs} />
 
           {/* Recent Workout Sessions History */}
