@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import confetti from 'canvas-confetti';
+import React from 'react';
 import { 
   User, 
   Target, 
@@ -14,147 +13,48 @@ import {
   ShieldCheck,
   AlertCircle
 } from 'lucide-react';
-import { UserProfile, Gender, ExperienceLevel, FitnessGoal, DietMode } from '../../core/storage/types';
-import { calculateMetabolicStats } from '../../core/math/metabolism';
-import { db, saveProfile, generateDefaultRoutines, generateInitialMealPlans, logWeightEntry } from '../../core/storage/db';
-import { todayLocal } from '../../core/utils/dateUtils';
+import { UserProfile, ExperienceLevel } from '../../core/storage/types';
+import { useOnboardingForm, BodyShapeArchetype } from './useOnboardingForm';
 
 interface OnboardingWizardProps {
   onComplete: () => void;
   initialProfile?: UserProfile;
 }
 
-type BodyShapeArchetype = 'overweight' | 'slightly_above' | 'moderate' | 'lean' | 'athletic';
-
 export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, initialProfile }) => {
-  const [step, setStep] = useState<number>(1);
-
-  // Form State - aceita string vazia para digitação fluida
-  const [name, setName] = useState(initialProfile?.name || '');
-  const [age, setAge] = useState<number | string>(initialProfile?.age ?? 26);
-  const [gender, setGender] = useState<Gender>(initialProfile?.gender || 'male');
-  const [heightCm, setHeightCm] = useState<number | string>(initialProfile?.heightCm ?? 178);
-  const [weightKg, setWeightKg] = useState<number | string>(initialProfile?.weightKg ?? 80);
-  
-  // Triagem humanizada de corpo
-  const [selectedArchetype, setSelectedArchetype] = useState<BodyShapeArchetype>('overweight');
-  const [showExactBfInput, setShowExactBfInput] = useState<boolean>(false);
-  const [exactBf, setExactBf] = useState<number | string>('');
-  
-  const [goal, setGoal] = useState<FitnessGoal>(initialProfile?.goal || 'recomposition');
-  const [experienceLevel, setExperienceLevel] = useState<ExperienceLevel>(initialProfile?.experienceLevel || 'intermediate');
-  const [trainingDaysPerWeek, setTrainingDaysPerWeek] = useState<number>(initialProfile?.trainingDaysPerWeek || 4);
-  const [sessionDurationMin, setSessionDurationMin] = useState<number>(initialProfile?.sessionDurationMin || 60);
-
-  const [dietMode] = useState<DietMode>(initialProfile?.dietMode || 'guided');
-  const [mealsPerDay, setMealsPerDay] = useState<number>(initialProfile?.mealsPerDay || 4);
-
-  const [isSaving, setIsSaving] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // Mapeia o arquétipo para uma estimativa interna suave
-  const getEstimatedBf = (): number | undefined => {
-    if (showExactBfInput && exactBf !== '') {
-      const parsed = Number(exactBf);
-      if (parsed > 3 && parsed < 60) return parsed;
-    }
-
-    const archetypeMap: Record<BodyShapeArchetype, { male: number; female: number }> = {
-      overweight: { male: 26, female: 34 },
-      slightly_above: { male: 21, female: 28 },
-      moderate: { male: 16, female: 23 },
-      lean: { male: 12, female: 19 },
-      athletic: { male: 10, female: 16 }
-    };
-
-    return gender === 'male' 
-      ? archetypeMap[selectedArchetype].male 
-      : archetypeMap[selectedArchetype].female;
-  };
-
-  /** Mantém o valor dentro de uma faixa fisiologicamente plausível. */
-  const clamp = (value: number | string, min: number, max: number, fallback: number): number => {
-    const parsed = typeof value === 'number' ? value : Number(value);
-    if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-    return Math.min(max, Math.max(min, parsed));
-  };
-
-  const handleFinish = async () => {
-    setIsSaving(true);
-    setErrorMsg(null);
-
-    try {
-      const sanitizedAge = clamp(age, 12, 100, 26);
-      const sanitizedHeight = clamp(heightCm, 120, 230, 178);
-      const sanitizedWeight = clamp(weightKg, 30, 300, 80);
-      const calculatedBf = getEstimatedBf();
-
-      const profileData: UserProfile = {
-        // Preserva o restante do perfil (id, ajuste calórico acumulado,
-        // fórmulas de termogênico) ao recalibrar.
-        ...initialProfile,
-        name: name.trim() || 'Usuário',
-        age: sanitizedAge,
-        gender,
-        heightCm: sanitizedHeight,
-        weightKg: sanitizedWeight,
-        bodyFatPercentage: calculatedBf,
-        goal,
-        experienceLevel,
-        trainingDaysPerWeek,
-        sessionDurationMin,
-        dietMode,
-        mealsPerDay,
-        isCalibrated: true,
-        createdAt: initialProfile?.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
-      await saveProfile(profileData);
-      await logWeightEntry(todayLocal(), sanitizedWeight, calculatedBf);
-
-      // Calcula as metas calóricas determinísticas
-      const stats = calculateMetabolicStats(profileData);
-
-      // Só gera treinos e cardápio quando ainda não existem. Na recalibração de
-      // um perfil já existente, regerar apagaria as fichas personalizadas e o
-      // cardápio inteiro do usuário sem aviso.
-      const [routineCount, mealCount] = await Promise.all([
-        db.routines.count(),
-        db.mealPlans.count()
-      ]);
-
-      if (routineCount === 0) {
-        await generateDefaultRoutines(trainingDaysPerWeek);
-      }
-
-      if (mealCount === 0) {
-        await generateInitialMealPlans(
-          mealsPerDay,
-          stats.targetCalories,
-          stats.proteinGrams,
-          stats.carbGrams,
-          stats.fatGrams
-        );
-      }
-
-      // Efeito de celebração
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
-
-      onComplete();
-    } catch (err) {
-      console.error('Erro ao salvar onboarding:', err);
-      setErrorMsg(
-        'Não foi possível salvar sua calibração. Verifique se o navegador permite armazenamento local (evite o modo privado) e tente novamente.'
-      );
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  const {
+    step,
+    setStep,
+    name,
+    setName,
+    age,
+    setAge,
+    gender,
+    setGender,
+    heightCm,
+    setHeightCm,
+    weightKg,
+    setWeightKg,
+    selectedArchetype,
+    setSelectedArchetype,
+    showExactBfInput,
+    setShowExactBfInput,
+    exactBf,
+    setExactBf,
+    goal,
+    setGoal,
+    experienceLevel,
+    setExperienceLevel,
+    trainingDaysPerWeek,
+    setTrainingDaysPerWeek,
+    sessionDurationMin,
+    setSessionDurationMin,
+    mealsPerDay,
+    setMealsPerDay,
+    isSaving,
+    errorMsg,
+    finish: handleFinish
+  } = useOnboardingForm(initialProfile, onComplete);
 
   return (
     <div className="min-h-screen bg-[#050811] flex flex-col justify-between p-4 max-w-lg mx-auto">
@@ -190,7 +90,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
                 Sobre Você & Biometria
               </h2>
               <p className="text-xs text-slate-400">
-                Usado para calcular sua Taxa Metabólica Basal (TMB) com exatidão científica.
+                Usado para estimar sua Taxa Metabólica Basal (TMB). É o ponto de partida: os check-ins vão calibrar esse número conforme você usa o app.
               </p>
             </div>
 
@@ -363,7 +263,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
             <div className="p-3.5 rounded-2xl bg-[#090F1E] border border-white/[0.08] flex items-start gap-2.5 text-[11px] text-slate-400">
               <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
               <span>
-                Não precisa se preocupar com números exatos. O motor calcula suas calorias diretamente a partir do seu peso e altura reais.
+                Não precisa se preocupar com números exatos. O motor estima suas calorias a partir do seu peso e altura reais.
               </span>
             </div>
 
@@ -608,7 +508,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ onComplete, 
                   <span>Tudo Pronto para o Cálculo</span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  Ao clicar em <strong>Calibrar Meu Plano</strong>, nosso motor gerará seu cardápio de precisão com alimentos oficiais da tabela TACO, suas fichas de treino com volume ótimo (MAV) e metas de hidratação.
+                  Ao clicar em <strong>Calibrar Meu Plano</strong>, nosso motor vai montar seu cardápio com alimentos da tabela TACO, suas fichas de treino dentro da faixa de volume recomendada (MAV) e suas metas de hidratação.
                 </p>
               </div>
             </div>

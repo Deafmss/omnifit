@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   Plus, 
   ShoppingBag, 
@@ -14,20 +14,8 @@ import {
   UtensilsCrossed,
   AlertCircle
 } from 'lucide-react';
-import { MealPlan, UserProfile, MetabolicStats, DailyThermogenicLog } from '../../core/storage/types';
-import {
-  db,
-  getTodayThermogenicLog,
-  updateTodayThermogenics,
-  getActiveProfile,
-  ensureFoodDatabaseReady,
-  getTodayWaterIntake,
-  setTodayWaterIntake
-} from '../../core/storage/db';
-import { todayLocal } from '../../core/utils/dateUtils';
-import { pushMealPlans } from '../../core/supabase/cloudSync';
-import { FOOD_DATABASE_MAP } from '../../core/data/tacoDatabase';
-import { calculateFoodNutrients } from '../../core/math/macroSolver';
+import { UserProfile, MetabolicStats } from '../../core/storage/types';
+import { useDietDay } from './useDietDay';
 import { MealCard } from './MealCard';
 import { ShoppingListModal } from './ShoppingListModal';
 import { ThermogenicsConfigModal } from './ThermogenicsConfigModal';
@@ -47,207 +35,49 @@ const HUMAN_MEAL_PRESETS = [
 ];
 
 export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProfile, stats }) => {
-  const [profile, setProfile] = useState<UserProfile>(initialProfile);
-  const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
+  const {
+    profile,
+    mealPlans,
+    reload,
+    waterDrunkMl,
+    thermogenicLog,
+    extraBurnKcal,
+    errorMsg,
+    consumed,
+    balance,
+    updateMeal: handleUpdateMeal,
+    deleteMeal: handleDeleteMeal,
+    addMeal: handleAddMeal,
+    resetDay: handleResetDay,
+    changeWater: handleWaterChange,
+    changeCoffee: handleCoffeeChange,
+    changePreWorkout: handlePreWorkoutChange
+  } = useDietDay(initialProfile, stats);
+
   const [isShoppingOpen, setIsShoppingOpen] = useState(false);
   const [isThermoConfigOpen, setIsThermoConfigOpen] = useState(false);
   const [isSmartWizardOpen, setIsSmartWizardOpen] = useState(false);
-  const [waterDrunkMl, setWaterDrunkMl] = useState<number>(0);
-  const [eatBonusCalories, setEatBonusCalories] = useState<boolean>(false);
-  // Guarda a ORDEM das refeições recolhidas, não o id do banco: os ids são
-  // auto-incrementais e o conjunto fixo [2,3,4,5] só acertava na primeira
-  // instalação, deixando de funcionar depois de recriar refeições.
+
+  // Guarda a ORDEM da refeição aberta, não o id do banco: os ids são
+  // auto-incrementais e um conjunto fixo só acertava na primeira instalação.
   const [expandedMealOrder, setExpandedMealOrder] = useState<number>(1);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [thermogenicLog, setThermogenicLog] = useState<DailyThermogenicLog>({
-    date: todayLocal(),
-    blackCoffeeCups: 0,
-    preWorkoutDoses: 0,
-    totalThermogenicCaloriesBurned: 0
-  });
 
-  const loadMealsAndProfile = async () => {
-    try {
-      // Garante que os alimentos personalizados do usuário estejam no mapa em
-      // memória antes de somar qualquer macro — sem isto eles contavam 0 kcal.
-      await ensureFoodDatabaseReady();
+  const totalCaloriesConsumed = consumed.calories;
+  const totalProteinConsumed = consumed.protein;
+  const totalCarbsConsumed = consumed.carbs;
+  const totalFatConsumed = consumed.fat;
 
-      const plans = await db.mealPlans.orderBy('order').toArray();
-      setMealPlans(plans);
-
-      // Espelha o cardápio na nuvem. Cobre também as edições feitas direto na
-      // tela (adicionar alimento, trocar porção), que não passam pelo gerador.
-      // O cloudSync agrupa as chamadas com debounce.
-      void pushMealPlans(plans);
-
-      const thermo = await getTodayThermogenicLog();
-      setThermogenicLog(thermo);
-
-      setWaterDrunkMl(await getTodayWaterIntake());
-
-      const active = await getActiveProfile();
-      if (active) setProfile(active);
-    } catch (err) {
-      console.error('Erro ao carregar o cardápio:', err);
-      setErrorMsg('Não foi possível carregar seu cardápio. Recarregue a página.');
-    }
-  };
-
-  useEffect(() => {
-    loadMealsAndProfile();
-  }, [stats.targetCalories]);
-
-  /** Executa uma escrita no banco reportando falhas ao usuário. */
-  const runWrite = async (action: () => Promise<void>, failureMessage: string) => {
-    try {
-      setErrorMsg(null);
-      await action();
-    } catch (err) {
-      console.error(failureMessage, err);
-      setErrorMsg(failureMessage);
-    }
-  };
-
-  const handleUpdateMeal = async (updated: MealPlan) => {
-    if (!updated.id) return;
-    await runWrite(async () => {
-      await db.mealPlans.put(updated);
-      await loadMealsAndProfile();
-    }, 'Não foi possível salvar a alteração na refeição.');
-  };
-
-  const handleDeleteMeal = async (id: number) => {
-    await runWrite(async () => {
-      await db.mealPlans.delete(id);
-      await loadMealsAndProfile();
-    }, 'Não foi possível excluir a refeição.');
-  };
-
-  const handleAddMeal = async () => {
-    await runWrite(async () => {
-      const total = mealPlans.length + 1;
-      const preset = HUMAN_MEAL_PRESETS[mealPlans.length] || { name: `Refeição ${total}`, time: '18:00' };
-
-      const newMeal: MealPlan = {
-        name: preset.name,
-        order: total,
-        timeLabel: preset.time,
-        targetCalories: Math.round(stats.targetCalories / total),
-        targetProtein: Math.round(stats.proteinGrams / total),
-        targetCarbs: Math.round(stats.carbGrams / total),
-        targetFat: Math.round(stats.fatGrams / total),
-        portions: []
-      };
-
-      await db.mealPlans.add(newMeal);
-
-      // Redistribui as metas das refeições já existentes: antes só a nova
-      // recebia o valor dividido por N+1, e a soma dos alvos deixava de fechar
-      // com a meta diária.
-      await Promise.all(
-        mealPlans.map((meal) =>
-          meal.id
-            ? db.mealPlans.update(meal.id, {
-                targetCalories: Math.round(stats.targetCalories / total),
-                targetProtein: Math.round(stats.proteinGrams / total),
-                targetCarbs: Math.round(stats.carbGrams / total),
-                targetFat: Math.round(stats.fatGrams / total)
-              })
-            : Promise.resolve(0)
-        )
-      );
-
-      await loadMealsAndProfile();
-    }, 'Não foi possível adicionar a refeição.');
-  };
-
-  const handleResetDay = async () => {
-    if (!confirm('Desmarcar todos os alimentos consumidos, a água e os termogênicos de hoje?')) {
-      return;
-    }
-
-    await runWrite(async () => {
-      for (const meal of mealPlans) {
-        if (meal.id) {
-          const resetPortions = meal.portions.map((p) => ({ ...p, consumed: false }));
-          await db.mealPlans.put({ ...meal, portions: resetPortions });
-        }
-      }
-
-      await setTodayWaterIntake(0);
-      await updateTodayThermogenics(
-        -thermogenicLog.blackCoffeeCups,
-        -thermogenicLog.preWorkoutDoses,
-        stats.bmr
-      );
-
-      await loadMealsAndProfile();
-    }, 'Não foi possível reiniciar o dia.');
-  };
-
-  const handleWaterChange = async (deltaMl: number) => {
-    const next = Math.max(0, waterDrunkMl + deltaMl);
-    setWaterDrunkMl(next); // resposta imediata na interface
-    await runWrite(async () => {
-      const saved = await setTodayWaterIntake(next);
-      setWaterDrunkMl(saved);
-    }, 'Não foi possível salvar o consumo de água.');
-  };
-
-  const handleCoffeeChange = async (delta: number) => {
-    await runWrite(async () => {
-      const updated = await updateTodayThermogenics(delta, 0, stats.bmr);
-      setThermogenicLog(updated);
-    }, 'Não foi possível registrar o café.');
-  };
-
-  const handlePreWorkoutChange = async (delta: number) => {
-    await runWrite(async () => {
-      const updated = await updateTodayThermogenics(0, delta, stats.bmr);
-      setThermogenicLog(updated);
-    }, 'Não foi possível registrar o pré-treino.');
-  };
-
-  // Totais consumidos
-  let totalCaloriesConsumed = 0;
-  let totalProteinConsumed = 0;
-  let totalCarbsConsumed = 0;
-  let totalFatConsumed = 0;
-
-  for (const meal of mealPlans) {
-    for (const portion of meal.portions) {
-      const food = FOOD_DATABASE_MAP.get(portion.foodId);
-      if (!food) continue;
-      const nut = calculateFoodNutrients(food, portion.grams);
-
-      if (portion.consumed) {
-        totalCaloriesConsumed += nut.calories;
-        totalProteinConsumed += nut.protein;
-        totalCarbsConsumed += nut.carbs;
-        totalFatConsumed += nut.fat;
-      }
-    }
-  }
-
-  // Integração com a Termogênese
-  const extraBurnKcal = thermogenicLog.totalThermogenicCaloriesBurned;
-  const effectiveCalorieTarget = eatBonusCalories 
-    ? stats.targetCalories + extraBurnKcal 
-    : stats.targetCalories;
-
+  const effectiveCalorieTarget = stats.targetCalories;
   const remainingCalories = Math.max(0, effectiveCalorieTarget - totalCaloriesConsumed);
   const calorieFraction = Math.min(1, totalCaloriesConsumed / (effectiveCalorieTarget || 1));
 
-  // Geometria do Anel Circular Hero (SVG)
+  // Geometria do anel circular (SVG)
   const radius = 70;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - calorieFraction * circumference;
 
-  // Déficit Real
-  const baseTdee = stats.tdee;
-  const actualTdeeToday = baseTdee + extraBurnKcal;
-  const netDeficitToday = actualTdeeToday - totalCaloriesConsumed;
-  const plannedFullDeficit = (baseTdee - stats.targetCalories) + extraBurnKcal;
+  const projectedEndOfDayDeficit = balance.projectedEndOfDay;
+  const currentEnergyBalance = balance.current;
 
   // Uma refeição aberta por vez, identificada pela ordem (estável) e não pelo id.
   const toggleMealCollapse = (mealOrder: number) => {
@@ -367,24 +197,40 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
           </div>
         </div>
 
-        {/* Real-Time Deficit & Burn Badge */}
+        {/* Balanço energético: meta do dia + leitura em tempo real */}
         <div className="mt-3 pt-3 border-t border-white/[0.06] flex items-center justify-between flex-wrap gap-2 text-xs font-mono">
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300">
-            <span>Déficit Projetado:</span>
+          <div
+            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300"
+            title={`Se você seguir o plano hoje: gasto estimado ${stats.tdee} kcal${
+              extraBurnKcal > 0 ? ` + ${extraBurnKcal} kcal de estimulantes` : ''
+            } - meta ${stats.targetCalories} kcal`}
+          >
+            <span>{projectedEndOfDayDeficit >= 0 ? 'Meta do dia:' : 'Superávit do dia:'}</span>
             <strong className="text-amber-400 font-bold">
-              -{totalCaloriesConsumed === 0 ? plannedFullDeficit : netDeficitToday} kcal
+              {projectedEndOfDayDeficit >= 0 ? '-' : '+'}
+              {Math.abs(projectedEndOfDayDeficit)} kcal
+            </strong>
+          </div>
+
+          <div
+            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#060A14] border border-white/[0.08] text-slate-300"
+            title="Gasto estimado do dia inteiro menos o que você já registrou. Diminui conforme você marca os alimentos. Pela manhã é otimista, porque o corpo ainda não gastou o dia todo."
+          >
+            <span className="text-slate-400">Agora:</span>
+            <strong className={currentEnergyBalance >= 0 ? 'text-[#A3E635] font-bold' : 'text-red-400 font-bold'}>
+              {currentEnergyBalance >= 0 ? '-' : '+'}
+              {Math.abs(currentEnergyBalance)} kcal
             </strong>
           </div>
 
           {extraBurnKcal > 0 && (
-            <button
-              type="button"
-              onClick={() => setEatBonusCalories(!eatBonusCalories)}
-              className="px-2.5 py-1 rounded-full bg-[#060A14] border border-[#84CC16]/30 text-[10px] font-mono text-[#A3E635] hover:text-white btn-tactile flex items-center gap-1.5"
+            <span
+              className="px-2.5 py-1 rounded-full bg-[#060A14] border border-white/[0.08] text-[10px] font-mono text-slate-400 flex items-center gap-1.5"
+              title="Estimativa aproximada de queima por estimulantes. Não é somada à sua meta calórica."
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${eatBonusCalories ? 'bg-blue-400' : 'bg-[#84CC16] animate-pulse'}`} />
-              <span>{eatBonusCalories ? '+Comida' : 'Acelerar Déficit 🔥'}</span>
-            </button>
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+              <span>~{extraBurnKcal} kcal estimadas</span>
+            </span>
           )}
         </div>
       </div>
@@ -408,7 +254,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
             
             <div className="flex items-center justify-between pt-0.5">
               <span className="text-[9px] font-mono text-amber-400 font-bold">
-                +{thermogenicLog.blackCoffeeCups * (profile.coffeeConfig?.caffeineMg ? Math.round(profile.coffeeConfig.caffeineMg * 0.18) : 18)} kcal
+                +{thermogenicLog.coffeeBurnKcal ?? 0} kcal
               </span>
               <div className="flex items-center gap-1">
                 <button
@@ -444,7 +290,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
             
             <div className="flex items-center justify-between pt-0.5">
               <span className="text-[9px] font-mono text-blue-400 font-bold">
-                +{thermogenicLog.preWorkoutDoses * 87} kcal
+                +{thermogenicLog.preWorkoutBurnKcal ?? 0} kcal
               </span>
               <div className="flex items-center gap-1">
                 <button
@@ -602,7 +448,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
           onClose={() => setIsThermoConfigOpen(false)}
           profile={profile}
           stats={stats}
-          onSaved={loadMealsAndProfile}
+          onSaved={() => void reload()}
         />
       )}
 
@@ -613,7 +459,7 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
           profile={profile}
           stats={stats}
           onApplyDiet={() => {
-            loadMealsAndProfile();
+            void reload();
           }}
         />
       )}

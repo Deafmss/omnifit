@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   Play, 
   ShieldCheck, 
@@ -12,10 +12,8 @@ import {
   BedDouble,
   ChevronDown
 } from 'lucide-react';
-import { WorkoutRoutine, UserProfile, Exercise, WorkoutSessionLog } from '../../core/storage/types';
-import { db, applySplitTemplate, addNewRoutine, deleteRoutine, SplitTemplateType } from '../../core/storage/db';
-import { todayLocal, toLocalDateString, startOfWeekMonday, addDays } from '../../core/utils/dateUtils';
-import { pushRoutines } from '../../core/supabase/cloudSync';
+import { WorkoutRoutine, UserProfile } from '../../core/storage/types';
+import { useWorkoutSplit, DAYS_OF_WEEK } from './useWorkoutSplit';
 import { EXERCISE_DATABASE_MAP } from '../../core/data/exerciseDatabase';
 import { MUSCLE_LABELS } from '../../core/math/trainingEngine';
 import { ActiveWorkoutModal } from './ActiveWorkoutModal';
@@ -27,172 +25,42 @@ interface WorkoutSplitViewProps {
   profile: UserProfile;
 }
 
-const DAYS_OF_WEEK = [
-  { dayIndex: 1, short: 'SEG', full: 'Segunda-feira' },
-  { dayIndex: 2, short: 'TER', full: 'Terça-feira' },
-  { dayIndex: 3, short: 'QUA', full: 'Quarta-feira' },
-  { dayIndex: 4, short: 'QUI', full: 'Quinta-feira' },
-  { dayIndex: 5, short: 'SEX', full: 'Sexta-feira' },
-  { dayIndex: 6, short: 'SÁB', full: 'Sábado' },
-  { dayIndex: 0, short: 'DOM', full: 'Domingo' }
-];
 
 export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) => {
-  const todayDayIndex = new Date().getDay(); // 0 = Domingo, 1 = Segunda ... 6 = Sábado
-  const [selectedDay, setSelectedDay] = useState<number>(todayDayIndex);
+  const {
+    selectedDay,
+    setSelectedDay,
+    routines,
+    currentRoutine,
+    currentDayInfo,
+    todayCompletedLog,
+    weekCompletionMap: currentWeekDatesMap,
+    errorMsg,
+    applyTemplate: handleApplyTemplate,
+    createRoutineForSelectedDay: handleCreateRoutineForSelectedDay,
+    removeRoutine: handleDeleteSplit,
+    renameRoutine,
+    addExercise: handleAddExercise,
+    removeExercise: handleRemoveExercise,
+    updateExerciseConfig: handleUpdateExerciseConfig,
+    reload: loadData
+  } = useWorkoutSplit();
 
-  const [routines, setRoutines] = useState<WorkoutRoutine[]>([]);
-  const [sessionLogs, setSessionLogs] = useState<WorkoutSessionLog[]>([]);
+  const todayDayIndex = new Date().getDay(); // 0 = Domingo ... 6 = Sábado
+
   const [activeRoutineToStart, setActiveRoutineToStart] = useState<WorkoutRoutine | null>(null);
   const [isAuditorOpen, setIsAuditorOpen] = useState<boolean>(false);
   const [isAddExerciseOpen, setIsAddExerciseOpen] = useState<boolean>(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState<boolean>(false);
 
-  // Estados de edição do nome da ficha
+  // Edição do nome da ficha
   const [isEditingTitle, setIsEditingTitle] = useState<boolean>(false);
   const [tempTitle, setTempTitle] = useState<string>('');
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  const loadData = async () => {
-    try {
-      const list = await db.routines.toArray();
-
-      const taken = new Set(list.filter((r) => r.dayOfWeek !== undefined).map((r) => r.dayOfWeek));
-      const preference = [1, 2, 3, 4, 5, 6, 0];
-
-      for (const routine of list) {
-        if (routine.dayOfWeek !== undefined) continue;
-
-        const freeDay = preference.find((d) => !taken.has(d));
-        if (freeDay === undefined) continue;
-
-        routine.dayOfWeek = freeDay;
-        taken.add(freeDay);
-        if (routine.id) {
-          await db.routines.update(routine.id, { dayOfWeek: freeDay });
-        }
-      }
-
-      setRoutines(list);
-      setSessionLogs(await db.sessionLogs.toArray());
-      setErrorMsg(null);
-
-      void pushRoutines(list);
-    } catch (err) {
-      console.error('Erro ao carregar os treinos:', err);
-      setErrorMsg('Não foi possível carregar suas fichas de treino. Recarregue a página.');
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const todayStr = todayLocal();
-  const todayCompletedLog = sessionLogs.find((s) => s.date === todayStr && s.completed);
-
-  // Mapa de dias da semana atual que têm treino concluído
-  const monday = startOfWeekMonday();
-  const currentWeekDatesMap = new Map<number, boolean>();
-  for (let i = 0; i < 7; i++) {
-    const d = addDays(monday, i);
-    const dStr = toLocalDateString(d);
-    currentWeekDatesMap.set(d.getDay(), sessionLogs.some((s) => s.date === dStr && s.completed));
-  }
-
-  // Encontra a rotina correspondente ao dia selecionado
-  const currentRoutine = routines.find((r) => r.dayOfWeek === selectedDay);
-  const currentDayInfo = DAYS_OF_WEEK.find((d) => d.dayIndex === selectedDay) || DAYS_OF_WEEK[0];
-
-  const handleApplyTemplate = async (templateId: SplitTemplateType) => {
-    await applySplitTemplate(templateId);
-    await loadData();
-  };
-
-  const handleCreateRoutineForSelectedDay = async () => {
-    await addNewRoutine(`Treino de ${currentDayInfo.full}`, undefined, selectedDay);
-    await loadData();
-  };
-
-  const handleDeleteSplit = async (routineId?: number) => {
-    if (!routineId) return;
-    if (confirm(`Tem certeza que deseja desvincular ou excluir o treino deste dia?`)) {
-      await deleteRoutine(routineId);
-      await loadData();
-    }
-  };
 
   const handleSaveTitle = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!currentRoutine?.id || !tempTitle.trim()) {
-      setIsEditingTitle(false);
-      return;
-    }
-
-    await db.routines.update(currentRoutine.id, { name: tempTitle.trim() });
-    await loadData();
+    await renameRoutine(tempTitle);
     setIsEditingTitle(false);
-  };
-
-  const handleAddExercise = async (
-    exercise: Exercise,
-    targetSets: number,
-    minReps: number,
-    maxReps: number,
-    restSeconds: number
-  ) => {
-    if (!currentRoutine?.id) return;
-
-    const newExercises = [
-      ...currentRoutine.exercises,
-      {
-        exerciseId: exercise.id,
-        targetSets,
-        minReps,
-        maxReps,
-        restSeconds
-      }
-    ];
-
-    const newTargetMuscles = Array.from(
-      new Set([...currentRoutine.targetMuscles, exercise.primaryMuscle])
-    );
-
-    await db.routines.update(currentRoutine.id, { 
-      exercises: newExercises,
-      targetMuscles: newTargetMuscles
-    });
-    loadData();
-  };
-
-  const handleRemoveExercise = async (index: number) => {
-    if (!currentRoutine?.id) return;
-    const newExercises = currentRoutine.exercises.filter((_, i) => i !== index);
-    await db.routines.update(currentRoutine.id, { exercises: newExercises });
-    loadData();
-  };
-
-  const handleUpdateExerciseConfig = async (
-    index: number,
-    deltaSets: number,
-    deltaReps: number,
-    deltaRest: number
-  ) => {
-    if (!currentRoutine?.id) return;
-    const ex = currentRoutine.exercises[index];
-    if (!ex) return;
-
-    const newExercises = [...currentRoutine.exercises];
-    newExercises[index] = {
-      ...ex,
-      targetSets: Math.max(1, Math.min(10, ex.targetSets + deltaSets)),
-      minReps: Math.max(1, ex.minReps + deltaReps),
-      maxReps: Math.max(ex.minReps + deltaReps, ex.maxReps + deltaReps),
-      restSeconds: Math.max(30, ex.restSeconds + deltaRest)
-    };
-
-    await db.routines.update(currentRoutine.id, { exercises: newExercises });
-    loadData();
   };
 
   return (
