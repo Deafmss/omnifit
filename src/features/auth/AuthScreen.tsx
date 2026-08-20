@@ -18,7 +18,6 @@ import {
   deleteAccount,
   UserAccount
 } from '../../core/auth/authService';
-import { switchUserDb } from '../../core/storage/db';
 
 interface AuthScreenProps {
   onAuthenticated: (account: UserAccount) => void;
@@ -61,7 +60,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated, initial
 
     try {
       const account = await login(email, password);
-      switchUserDb(account.id);
+      // A troca do contêiner fica a cargo do App (activateAccount), para não
+      // fechar e reabrir a conexão duas vezes em sequência.
       onAuthenticated(account);
     } catch (err: any) {
       setErrorMsg(err?.message || 'Erro ao fazer login. Verifique suas credenciais.');
@@ -77,7 +77,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onAuthenticated, initial
 
     try {
       const account = await signUp(name, email, password);
-      switchUserDb(account.id);
       onAuthenticated(account);
     } catch (err: any) {
       setErrorMsg(err?.message || 'Erro ao criar conta.');

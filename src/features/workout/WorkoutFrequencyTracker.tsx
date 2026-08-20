@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Flame, Trophy, Calendar, Check, Zap } from 'lucide-react';
 import { getWorkoutFrequencyStats } from '../../core/storage/db';
+import { todayLocal, toLocalDateString, startOfWeekMonday, addDays } from '../../core/utils/dateUtils';
 
 interface WorkoutFrequencyTrackerProps {
   targetWeeklyDays?: number;
@@ -22,13 +23,10 @@ export const WorkoutFrequencyTracker: React.FC<WorkoutFrequencyTrackerProps> = (
 
   if (!stats) return null;
 
-  // Monta a semana atual (Segunda a Domingo)
+  // Monta a semana atual (Segunda a Domingo) em datas LOCAIS
   const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
-  const currentDayOfWeek = now.getDay(); // 0 Dom, 1 Seg...
-  const distanceToMonday = (currentDayOfWeek + 6) % 7;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - distanceToMonday);
+  const todayStr = todayLocal();
+  const monday = startOfWeekMonday(now);
 
   const weekDays = [
     { short: 'SEG', full: 'Segunda' },
@@ -39,34 +37,26 @@ export const WorkoutFrequencyTracker: React.FC<WorkoutFrequencyTrackerProps> = (
     { short: 'SÁB', full: 'Sábado' },
     { short: 'DOM', full: 'Domingo' }
   ].map((day, idx) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + idx);
-    const dateStr = d.toISOString().split('T')[0];
-    const isCompleted = stats.completedDates.has(dateStr);
-    const isToday = dateStr === todayStr;
-    const isPast = d < now && !isToday;
+    const d = addDays(monday, idx);
+    const dateStr = toLocalDateString(d);
 
     return {
       ...day,
       dateStr,
       dayNumber: d.getDate(),
-      isCompleted,
-      isToday,
-      isPast
+      isCompleted: stats.completedDates.has(dateStr),
+      isToday: dateStr === todayStr
     };
   });
 
   // Monta a matriz das últimas 4 semanas (28 dias) para o heatmap de consistência
   const fourWeeksMatrix: { dateStr: string; isCompleted: boolean; isToday: boolean }[][] = [];
-  const startOf4Weeks = new Date(monday);
-  startOf4Weeks.setDate(monday.getDate() - 21); // 3 semanas antes da atual
+  const startOf4Weeks = addDays(monday, -21); // 3 semanas antes da atual
 
   for (let w = 0; w < 4; w++) {
     const week: { dateStr: string; isCompleted: boolean; isToday: boolean }[] = [];
     for (let d = 0; d < 7; d++) {
-      const current = new Date(startOf4Weeks);
-      current.setDate(startOf4Weeks.getDate() + (w * 7) + d);
-      const str = current.toISOString().split('T')[0];
+      const str = toLocalDateString(addDays(startOf4Weeks, w * 7 + d));
       week.push({
         dateStr: str,
         isCompleted: stats.completedDates.has(str),
@@ -211,15 +201,15 @@ export const WorkoutFrequencyTracker: React.FC<WorkoutFrequencyTrackerProps> = (
           <Zap className="w-3.5 h-3.5 text-[#A3E635] mx-auto" />
           <span className="text-[9px] text-slate-400 block uppercase">Tonelagem Mês</span>
           <strong className="text-sm font-black text-white">
-            {(stats.totalVolumeLiftedKg / 1000).toFixed(1)}t
+            {(stats.monthVolumeLiftedKg / 1000).toFixed(1)}t
           </strong>
         </div>
 
         <div className="p-3 rounded-2xl bg-[#090F1E] border border-white/[0.08] text-center space-y-0.5">
           <Flame className="w-3.5 h-3.5 text-[#A3E635] mx-auto" />
-          <span className="text-[9px] text-slate-400 block uppercase">Gasto Treinos</span>
+          <span className="text-[9px] text-slate-400 block uppercase">Gasto no Mês</span>
           <strong className="text-sm font-black text-white">
-            {stats.totalCaloriesBurned} kcal
+            {stats.monthCaloriesBurned} kcal
           </strong>
         </div>
       </div>

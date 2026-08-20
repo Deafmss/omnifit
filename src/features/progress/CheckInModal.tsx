@@ -7,10 +7,12 @@ import {
 } from 'lucide-react';
 import { UserProfile, WeightLog, MetabolicStats, CheckInLog } from '../../core/storage/types';
 import { evaluateAdaptiveMetabolism, AdaptiveEvaluationResult } from '../../core/math/adaptiveEngine';
+import { calculateMetabolicStats } from '../../core/math/metabolism';
 import { logWeightEntry, db, saveProfile, ensureFoodDatabaseReady } from '../../core/storage/db';
 import { calculatePortionsTotal } from '../../core/math/macroSolver';
 import { FOOD_DATABASE_MAP } from '../../core/data/tacoDatabase';
 import { todayLocal, daysBetween } from '../../core/utils/dateUtils';
+import { pushCheckInLog } from '../../core/supabase/cloudSync';
 import { Modal } from '../../components/ui/Modal';
 
 interface CheckInModalProps {
@@ -73,12 +75,15 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
   }, [weightLogs, profile.weightKg]);
 
   /**
-   * Média real de calorias consumidas, a partir das porções marcadas como
-   * consumidas nos cardápios. Cai para o alvo planejado quando não há registro,
-   * mas usar o alvo como se fosse o consumo real (comportamento anterior)
-   * tornava o "TDEE revelado" uma função da própria premissa.
+   * Calorias efetivamente marcadas como consumidas no cardápio, usadas como
+   * melhor estimativa da ingestão diária média.
+   *
+   * Ainda é uma aproximação — o app registra o consumo do dia corrente, não uma
+   * média histórica — mas é um dado real. Passar `stats.targetCalories` como se
+   * fosse o consumo (comportamento anterior) tornava o "TDEE revelado" uma
+   * função da própria premissa, sem informação nova.
    */
-  const [averageConsumed, setAverageConsumed] = useState<number>(stats.targetCalories);
+  const [estimatedDailyIntake, setEstimatedDailyIntake] = useState<number>(stats.targetCalories);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -98,9 +103,9 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
 
         if (cancelled) return;
         // Se nada foi marcado hoje, o alvo planejado é a melhor estimativa disponível.
-        setAverageConsumed(consumed > 0 ? consumed : stats.targetCalories);
+        setEstimatedDailyIntake(consumed > 0 ? consumed : stats.targetCalories);
       } catch {
-        if (!cancelled) setAverageConsumed(stats.targetCalories);
+        if (!cancelled) setEstimatedDailyIntake(stats.targetCalories);
       }
     })();
 
@@ -109,6 +114,22 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
     };
   }, [isOpen, stats.targetCalories]);
 
+  /**
+   * Alvo calórico que realmente valerá após aplicar o ajuste.
+   * Passa pelo mesmo cálculo do app (incluindo o teto de 30% do TDEE e o piso
+   * da TMB), para que a projeção mostrada não prometa um número diferente do
+   * que o usuário vai ver depois de salvar.
+   */
+  const projectedTarget = useMemo(() => {
+    if (!evaluation) return stats.targetCalories;
+
+    return calculateMetabolicStats({
+      ...profile,
+      calorieAdjustmentKcal:
+        (profile.calorieAdjustmentKcal || 0) + evaluation.suggestedCaloricChangeKcal
+    }).targetCalories;
+  }, [evaluation, profile, stats.targetCalories]);
+
   const handleEvaluate = () => {
     const cleanWeight = typeof currentWeight === 'number' && currentWeight > 0 ? currentWeight : Number(currentWeight) || profile.weightKg;
     const result = evaluateAdaptiveMetabolism(
@@ -116,7 +137,7 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
       evaluationWindow.initialEma,
       cleanWeight,
       evaluationWindow.daysElapsed,
-      averageConsumed,
+      estimatedDailyIntake,
       adherencePercentage,
       hungerRating
     );
@@ -145,7 +166,7 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
         calorieAdjustmentKcal: newAdjustment
       });
 
-      await db.checkInLogs.add({
+      const checkInLog: CheckInLog = {
         date: today,
         weightKg: cleanWeight,
         hungerRating: hungerRating as CheckInLog['hungerRating'],
@@ -153,7 +174,10 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
         adherencePercentage,
         caloricAdjustmentSuggestedKcal: evaluation.suggestedCaloricChangeKcal,
         notes: evaluation.reasoning
-      });
+      };
+
+      const checkInId = (await db.checkInLogs.add(checkInLog)) as number;
+      void pushCheckInLog({ ...checkInLog, id: checkInId });
 
       confetti({
         particleCount: 70,
@@ -339,10 +363,15 @@ export const CheckInModal: React.FC<CheckInModalProps> = ({
                   <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
                     <span>Nova meta diária:</span>
                     <span className="text-white font-bold">
-                      {stats.targetCalories} &rarr;{' '}
-                      {stats.targetCalories + evaluation.suggestedCaloricChangeKcal} kcal
+                      {stats.targetCalories} &rarr; {projectedTarget} kcal
                     </span>
                   </div>
+                  {projectedTarget !== stats.targetCalories + evaluation.suggestedCaloricChangeKcal && (
+                    <p className="text-[10px] font-mono text-amber-400 leading-snug">
+                      O ajuste foi limitado pelo piso de segurança calórico (nunca abaixo da sua
+                      taxa metabólica basal).
+                    </p>
+                  )}
                 </div>
               )}
             </div>

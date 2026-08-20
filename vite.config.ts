@@ -17,6 +17,8 @@ export default defineConfig({
       ],
       manifest: {
         id: '/',
+        lang: 'pt-BR',
+        dir: 'ltr',
         name: 'OmniFit - Dieta, Treino & Metabolismo',
         short_name: 'OmniFit',
         description: 'Nutrição de Precisão & Biomecânica Adaptativa',
@@ -51,5 +53,23 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,webmanifest}']
       }
     })
-  ]
+  ],
+  build: {
+    rollupOptions: {
+      output: {
+        // Separa as bases de dados estáticas (TACO com 141 alimentos e 80
+        // exercícios) e as bibliotecas em chunks próprios: num bundle único de
+        // ~575 KB, tudo isso bloqueava a primeira renderização.
+        manualChunks(id) {
+          if (id.includes('src/core/data/')) return 'app-data';
+          if (id.includes('node_modules/@supabase')) return 'vendor-supabase';
+          if (id.includes('node_modules/dexie')) return 'vendor-dexie';
+          if (id.includes('node_modules/react') || id.includes('node_modules/scheduler')) {
+            return 'vendor-react';
+          }
+          return undefined;
+        }
+      }
+    }
+  }
 })

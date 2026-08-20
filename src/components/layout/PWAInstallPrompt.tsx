@@ -1,77 +1,99 @@
 import React, { useState, useEffect } from 'react';
 import { Download, X, Share, PlusSquare } from 'lucide-react';
+import {
+  isInstallPromptAvailable,
+  isIOSDevice,
+  isRunningStandalone,
+  showInstallPrompt,
+  subscribeToInstallPrompt
+} from '../../core/pwa/installPrompt';
 
-export const PWAInstallPrompt: React.FC = () => {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+const DISMISSED_KEY = 'omnifit_pwa_dismissed_at';
+const DISMISS_HOURS = 24;
+
+interface PWAInstallPromptProps {
+  /** Ignora o período de silêncio de 24 h (usado pelo botão em Configurações). */
+  forceVisible?: boolean;
+  onDismiss?: () => void;
+}
+
+function wasRecentlyDismissed(): boolean {
+  const dismissedAt = localStorage.getItem(DISMISSED_KEY);
+  if (!dismissedAt) return false;
+
+  const hours = (Date.now() - Number(dismissedAt)) / (1000 * 60 * 60);
+  return Number.isFinite(hours) && hours < DISMISS_HOURS;
+}
+
+export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ forceVisible, onDismiss }) => {
   const [isIOS, setIsIOS] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
+  const [hasNativePrompt, setHasNativePrompt] = useState(() => isInstallPromptAvailable());
   const [isVisible, setIsVisible] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    // 1. Verifica se já está rodando como app instalado (standalone)
-    const checkStandalone = 
-      window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as any).standalone === true;
+    // Já instalado: nada a oferecer.
+    if (isRunningStandalone()) return;
 
-    if (checkStandalone) {
-      setIsStandalone(true);
-      return;
-    }
+    if (!forceVisible && wasRecentlyDismissed()) return;
 
-    // 2. Verifica se o usuário já fechou recentemente
-    const dismissedAt = localStorage.getItem('omnifit_pwa_dismissed_at');
-    if (dismissedAt) {
-      const hoursSinceDismissed = (Date.now() - Number(dismissedAt)) / (1000 * 60 * 60);
-      if (hoursSinceDismissed < 24) {
-        return; // Não incomoda o usuário nas primeiras 24h após fechar
-      }
-    }
+    const iosDevice = isIOSDevice();
+    setIsIOS(iosDevice);
 
-    // 3. Detecta iOS / Safari
-    const userAgent = window.navigator.userAgent.toLowerCase();
-    const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
-    if (isIosDevice) {
-      setIsIOS(true);
-      // Exibe para iOS após 2.5 segundos
-      const timer = setTimeout(() => setIsVisible(true), 2500);
+    if (iosDevice) {
+      // iOS não tem prompt nativo: só instruções.
+      const timer = setTimeout(() => setIsVisible(true), forceVisible ? 0 : 2500);
       return () => clearTimeout(timer);
     }
 
-    // 4. Listener do evento nativo beforeinstallprompt (Android / Chrome / Edge)
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      // Exibe o popup com animação
-      setTimeout(() => setIsVisible(true), 1500);
-    };
+    // Android/desktop: o evento pode já ter sido capturado no bootstrap.
+    if (isInstallPromptAvailable()) {
+      setHasNativePrompt(true);
+      const timer = setTimeout(() => setIsVisible(true), forceVisible ? 0 : 1500);
+      return () => clearTimeout(timer);
+    }
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    // Ou pode chegar depois — o módulo global avisa.
+    const unsubscribe = subscribeToInstallPrompt((available) => {
+      setHasNativePrompt(available);
+      if (available) setIsVisible(true);
+      if (!available) setIsVisible(false);
+    });
 
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
-  }, []);
+    return unsubscribe;
+  }, [forceVisible]);
 
   const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
+    const outcome = await showInstallPrompt();
 
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    
     if (outcome === 'accepted') {
       setIsVisible(false);
+      return;
     }
-    setDeferredPrompt(null);
+
+    if (outcome === 'dismissed') {
+      // O usuário recusou: fecha o cartão em vez de deixar um botão inerte —
+      // o evento nativo só pode ser consumido uma vez.
+      localStorage.setItem(DISMISSED_KEY, String(Date.now()));
+      setIsVisible(false);
+      onDismiss?.();
+      return;
+    }
+
+    setStatusMsg(
+      'Seu navegador não ofereceu a instalação automática. Use o menu do navegador e escolha "Instalar aplicativo" ou "Adicionar à tela inicial".'
+    );
   };
 
   const handleDismiss = () => {
-    localStorage.setItem('omnifit_pwa_dismissed_at', String(Date.now()));
+    localStorage.setItem(DISMISSED_KEY, String(Date.now()));
     setIsVisible(false);
+    onDismiss?.();
   };
 
-  if (isStandalone || !isVisible) {
-    return null;
-  }
+  if (!isVisible) return null;
+
+  const showNativeButton = !isIOS && hasNativePrompt;
 
   return (
     <div className="fixed bottom-20 left-4 right-4 z-50 max-w-md mx-auto animate-in slide-in-from-bottom-6 duration-300">
@@ -87,16 +109,14 @@ export const PWAInstallPrompt: React.FC = () => {
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h4 className="text-sm font-extrabold text-white font-display">
-                  Instalar o OmniFit
-                </h4>
+                <h4 className="text-sm font-extrabold text-white font-display">Instalar o OmniFit</h4>
                 <span className="px-1.5 py-0.5 rounded-full bg-[#84CC16]/15 border border-[#84CC16]/30 text-[#A3E635] text-[8px] font-black font-mono uppercase">
                   App Nativo
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 leading-tight mt-0.5">
-                {isIOS 
-                  ? 'Acesso rápido em tela cheia com funcionamento 100% offline no iPhone.' 
+                {isIOS
+                  ? 'Acesso rápido em tela cheia com funcionamento offline no iPhone e iPad.'
                   : 'Instale na sua tela inicial para acesso offline rápido e tela cheia.'}
               </p>
             </div>
@@ -113,9 +133,18 @@ export const PWAInstallPrompt: React.FC = () => {
         </div>
 
         {/* Actions */}
-        <div className="relative z-10 pt-1">
-          {isIOS ? (
-            /* iOS Instruction Box */
+        <div className="relative z-10 pt-1 space-y-2">
+          {showNativeButton ? (
+            <button
+              type="button"
+              onClick={handleInstallClick}
+              className="w-full py-3 px-4 rounded-2xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-md shadow-lime-500/20 hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+            >
+              <Download className="w-4 h-4 stroke-[2.5]" />
+              <span>Instalar Aplicativo (1 Toque)</span>
+            </button>
+          ) : isIOS ? (
+            /* iOS: instruções, já que não existe prompt nativo */
             <div className="p-3 rounded-2xl bg-[#060A14] border border-white/[0.08] text-xs space-y-1.5 font-mono">
               <div className="flex items-center gap-2 text-slate-200">
                 <span>1. Toque em Compartilhar</span>
@@ -128,17 +157,18 @@ export const PWAInstallPrompt: React.FC = () => {
                   <PlusSquare className="w-3.5 h-3.5" />
                 </span>
               </div>
+              <p className="text-[10px] text-slate-500 pt-0.5">
+                No iPhone e iPad, use o Safari para que a opção apareça.
+              </p>
             </div>
           ) : (
-            /* Android / Desktop 1-Click Install Button */
-            <button
-              type="button"
-              onClick={handleInstallClick}
-              className="w-full py-3 px-4 rounded-2xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-md shadow-lime-500/20 hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-            >
-              <Download className="w-4 h-4 stroke-[2.5]" />
-              <span>Instalar Aplicativo (1 Toque)</span>
-            </button>
+            <div className="p-3 rounded-2xl bg-[#060A14] border border-white/[0.08] text-[11px] font-mono text-slate-300">
+              Abra o menu do navegador e escolha "Instalar aplicativo" ou "Adicionar à tela inicial".
+            </div>
+          )}
+
+          {statusMsg && (
+            <p className="text-[10px] font-mono text-amber-400 leading-snug">{statusMsg}</p>
           )}
         </div>
       </div>

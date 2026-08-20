@@ -45,7 +45,8 @@ function parseServingInfo(servingStr?: string, servingQty?: string | number): { 
   let servingUnit: string | undefined = undefined;
 
   if (raw.includes('fatia')) servingUnit = 'fatia(s)';
-  else if (raw.includes('unidade') || raw.includes('un') || raw.includes('unid')) servingUnit = 'unidade(s)';
+  // 'un' como substring solta casava em "punhado", "junta", "atum"...
+  else if (/unidades?|unid|un/.test(raw)) servingUnit = 'unidade(s)';
   else if (raw.includes('scoop') || raw.includes('dosador')) servingUnit = 'scoop(s)';
   else if (raw.includes('colher')) servingUnit = 'colher(es) de sopa';
   else if (raw.includes('concha')) servingUnit = 'concha(s)';
@@ -79,6 +80,17 @@ function inferCategory(nutriments: OFFNutriments, categoryTags?: string[]): 'pro
   if (p >= 14 && p > c && p > f) return 'protein';
   if (f >= 25 && f * 9 > c * 4) return 'fat';
   return 'carb';
+}
+
+/** Normaliza um texto para uso como identificador estável. */
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 48);
 }
 
 /**
@@ -129,7 +141,9 @@ export async function searchOpenFoodFacts(query: string): Promise<FoodItem[]> {
       const category = inferCategory(nut, prod.categories_tags);
 
       validItems.push({
-        id: `off_${prod.code || Math.random().toString(36).substring(2, 9)}`,
+        // Id determinístico: `Math.random()` gerava um id novo a cada busca,
+        // criando duplicatas do mesmo produto no banco de alimentos.
+        id: `off_${prod.code || slugify(fullName)}`,
         name: fullName,
         category,
         servingName,

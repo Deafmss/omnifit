@@ -148,7 +148,6 @@ export interface WorkoutSetLog {
   setNumber: number;
   weightKg: number | string;
   reps: number | string;
-  rpe?: number;
   completed: boolean;
 }
 
@@ -191,7 +190,6 @@ export interface WeightLog {
   weightKg: number;
   emaWeightKg?: number;
   bodyFatPercentage?: number;
-  waistCircumferenceCm?: number;
   notes?: string;
 }
 

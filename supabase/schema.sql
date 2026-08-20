@@ -1,6 +1,10 @@
 -- ==============================================================================
 -- OMNIFIT DATABASE SCHEMA & ROW LEVEL SECURITY (RLS)
--- Execute este script no SQL Editor do seu projeto Supabase (deafmss22@gmail.com)
+-- Execute este script no SQL Editor do seu projeto Supabase.
+--
+-- Requisito: a sincronização só funciona para usuários autenticados via
+-- Supabase Auth (login com Google). As políticas abaixo usam auth.uid(), que é
+-- NULL para contas puramente locais — nesse caso os INSERTs são bloqueados.
 -- ==============================================================================
 
 -- 1. Tabela de Perfis de Usuário (Antropometria e Metas)
@@ -23,7 +27,11 @@ create table if not exists public.profiles (
   pre_workout_formula jsonb,
   coffee_config jsonb,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  -- Um perfil por usuário. Necessário para o upsert com
+  -- `onConflict: 'user_id'` do cliente: sem esta constraint o Postgres
+  -- rejeita a operação com o erro 42P10.
+  constraint profiles_user_id_key unique (user_id)
 );
 
 -- Habilitar RLS em profiles
@@ -39,7 +47,8 @@ create policy "Usuários podem inserir seu próprio perfil"
 
 create policy "Usuários podem atualizar seu próprio perfil"
   on public.profiles for update
-  using (auth.uid() = user_id);
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 create policy "Usuários podem excluir seu próprio perfil"
   on public.profiles for delete
@@ -67,7 +76,8 @@ alter table public.meal_plans enable row level security;
 
 create policy "Usuários podem gerenciar apenas suas próprias refeições"
   on public.meal_plans for all
-  using (auth.uid() = user_id);
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 
 -- 3. Tabela de Fichas de Treino (Divisão de Treinos Semanal)
@@ -88,7 +98,8 @@ alter table public.workout_routines enable row level security;
 
 create policy "Usuários podem gerenciar apenas suas próprias fichas de treino"
   on public.workout_routines for all
-  using (auth.uid() = user_id);
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 
 -- 4. Tabela de Logs de Execução de Treino
@@ -101,7 +112,6 @@ create table if not exists public.workout_session_logs (
   duration_minutes integer not null default 0,
   total_volume_load_kg numeric not null default 0,
   calories_burned_estimate integer not null default 0,
-  rpe_overall integer check (rpe_overall between 1 and 10),
   completed boolean not null default true,
   exercise_logs jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now()
@@ -112,7 +122,8 @@ alter table public.workout_session_logs enable row level security;
 
 create policy "Usuários podem gerenciar apenas seus próprios logs de treino"
   on public.workout_session_logs for all
-  using (auth.uid() = user_id);
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 
 -- 5. Tabela de Histórico de Pesagens e EMA
@@ -131,7 +142,8 @@ alter table public.weight_logs enable row level security;
 
 create policy "Usuários podem gerenciar apenas suas próprias pesagens"
   on public.weight_logs for all
-  using (auth.uid() = user_id);
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 
 -- 6. Tabela de Check-Ins Semanais & Diagnósticos Adaptativos
@@ -155,11 +167,12 @@ alter table public.check_in_logs enable row level security;
 
 create policy "Usuários podem gerenciar apenas seus próprios check-ins"
   on public.check_in_logs for all
-  using (auth.uid() = user_id);
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 -- Índices de alta performance
-create index if not exists idx_profiles_user on public.profiles(user_id);
 create index if not exists idx_meal_plans_user on public.meal_plans(user_id);
 create index if not exists idx_workout_routines_user on public.workout_routines(user_id);
 create index if not exists idx_session_logs_user_date on public.workout_session_logs(user_id, date);
 create index if not exists idx_weight_logs_user_date on public.weight_logs(user_id, date);
+create index if not exists idx_check_in_logs_user_date on public.check_in_logs(user_id, date);

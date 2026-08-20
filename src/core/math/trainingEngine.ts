@@ -24,10 +24,14 @@ export function getVolumeLandmarks(muscle: MuscleGroup, level: ExperienceLevel):
 
   const base = baseLandmarks[muscle];
   if (level === 'beginner') {
+    const mv = Math.max(0, base.mv - 2);
+    const mev = Math.max(4, base.mev - 2);
     return {
-      mv: Math.max(4, base.mv - 2),
-      mev: Math.max(6, base.mev - 2),
-      mavMin: base.mev,
+      mv,
+      mev,
+      // O MAV precisa começar no MEV ou acima: com os valores antigos,
+      // glúteos e abdômen de iniciante tinham mavMin (4) abaixo do mev (6).
+      mavMin: Math.max(mev, base.mev),
       mavMax: base.mavMin + 2,
       mrv: base.mavMax
     };
@@ -112,15 +116,21 @@ export function auditWorkoutRoutines(
     let status: 'under' | 'optimal' | 'over' | 'maintenance' = 'optimal';
     let recommendation = 'Volume na faixa ótima de hipertrofia (MAV).';
 
-    if (sets < landmarks.mev) {
-      status = 'under';
-      recommendation = `Volume abaixo do mínimo efetivo (${sets}/${landmarks.mev} séries). Aumente de 2 a 4 séries semanais para gerar estímulo real.`;
-    } else if (sets > landmarks.mrv) {
+    // A ordem importa: a faixa de manutenção (MV..MEV) precisa ser testada
+    // ANTES de "abaixo do MEV", senão nunca é alcançada — era o caso antes,
+    // e o app nunca reportava volume de manutenção.
+    if (sets > landmarks.mrv) {
       status = 'over';
       recommendation = `Volume acima do teto recuperável (${sets}/${landmarks.mrv} séries). Risco de fadiga excessiva e lesão articular. Reduza séries.`;
-    } else if (sets >= landmarks.mv && sets < landmarks.mev) {
+    } else if (sets >= landmarks.mev) {
+      status = 'optimal';
+      recommendation = `Volume na faixa ótima de hipertrofia (${sets} séries, MAV ${landmarks.mavMin}-${landmarks.mavMax}).`;
+    } else if (sets >= landmarks.mv && landmarks.mv > 0) {
       status = 'maintenance';
-      recommendation = `Volume suficiente apenas para manutenção (${sets} séries). Não haverá ganho muscular significativo.`;
+      recommendation = `Volume suficiente apenas para manutenção (${sets} séries, MEV ${landmarks.mev}). Não haverá ganho muscular significativo.`;
+    } else {
+      status = 'under';
+      recommendation = `Volume abaixo do mínimo efetivo (${sets}/${landmarks.mev} séries). Aumente de 2 a 4 séries semanais para gerar estímulo real.`;
     }
 
     results.push({
@@ -159,8 +169,13 @@ export function evaluateDoubleProgression(
   const allSetsHitMax = completedReps.every(reps => reps >= maxReps);
 
   if (allSetsHitMax) {
-    const increment = isCompound ? 4 : 2; // +4kg para compostos, +2kg para isoladores
-    const newWeight = currentWeightKg + increment;
+    // Incremento proporcional à carga (2,5% a 5%), com piso absoluto. O passo
+    // fixo de +4 kg representava 40% de aumento num exercício de 10 kg.
+    const percentStep = currentWeightKg * (isCompound ? 0.05 : 0.025);
+    const minStep = isCompound ? 2 : 1;
+    const maxStep = isCompound ? 10 : 5;
+    const increment = Math.max(minStep, Math.min(maxStep, Math.round(percentStep * 2) / 2));
+    const newWeight = Number((currentWeightKg + increment).toFixed(1));
     return {
       shouldIncreaseLoad: true,
       suggestedWeightKg: newWeight,
@@ -176,13 +191,40 @@ export function evaluateDoubleProgression(
 }
 
 /**
- * Calcula o gasto calórico real do treino por METs (Compêndio de Ainsworth).
+ * Calcula o gasto calórico ADICIONAL do treino por METs (Compêndio de Ainsworth).
+ *
+ * Subtrai 1 MET (o metabolismo de repouso do mesmo período), já contabilizado
+ * no TDEE: sem esse desconto o gasto era superestimado em ~17% e havia dupla
+ * contagem ao somar as calorias da sessão ao gasto diário.
  */
 export function estimateWorkoutCalories(
   durationMinutes: number,
   weightKg: number,
   averageMets: number = 6.0
 ): number {
-  const hours = durationMinutes / 60;
-  return Math.round(averageMets * weightKg * hours);
+  const hours = Math.max(0, durationMinutes) / 60;
+  const netMets = Math.max(0, averageMets - 1);
+  return Math.round(netMets * weightKg * hours);
+}
+
+/**
+ * MET médio ponderado por séries de uma ficha, usando o MET real de cada
+ * exercício da base em vez de um valor fixo de 6,0 para qualquer treino.
+ */
+export function averageMetsForRoutine(
+  routine: WorkoutRoutine,
+  exerciseMap: Map<string, Exercise>
+): number {
+  let weightedSum = 0;
+  let totalSets = 0;
+
+  for (const item of routine.exercises) {
+    const exercise = exerciseMap.get(item.exerciseId);
+    if (!exercise) continue;
+    weightedSum += (exercise.mets || 6) * item.targetSets;
+    totalSets += item.targetSets;
+  }
+
+  if (totalSets === 0) return 6.0;
+  return Number((weightedSum / totalSets).toFixed(2));
 }

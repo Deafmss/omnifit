@@ -24,6 +24,7 @@ import {
 } from '../data/workoutTemplates';
 import { generateSmartMealPlan } from '../math/dietOptimizer';
 import { todayLocal, currentMonthPrefix, startOfWeekMonday, addDays, toLocalDateString } from '../utils/dateUtils';
+import { pushProfile, pushMealPlans, pushRoutines, pushWeightLog } from '../supabase/cloudSync';
 
 export type { SplitTemplateType };
 
@@ -60,12 +61,19 @@ function getActiveDbName(): string {
 let currentDbInstance = new OmniFitDatabase(getActiveDbName());
 
 export function switchUserDb(userId: string) {
+  const targetName = `OmniFit_user_${userId}`;
+
+  // Idempotente: trocar para o banco que já está ativo fecharia a conexão
+  // atual e derrubaria qualquer leitura em voo com DatabaseClosedError.
+  // A tela de login e o App chamam esta função em sequência para a mesma conta.
+  if (currentDbInstance.name === targetName) return;
+
   try {
     currentDbInstance.close();
   } catch (e) {
     // ignora erro ao fechar
   }
-  currentDbInstance = new OmniFitDatabase(`OmniFit_user_${userId}`);
+  currentDbInstance = new OmniFitDatabase(targetName);
 
   // O mapa de alimentos é global e em memória. Sem esta limpeza, os alimentos
   // personalizados da conta anterior continuariam visíveis na nova conta,
@@ -133,23 +141,32 @@ export async function getActiveProfile(): Promise<UserProfile | undefined> {
  * Salva ou atualiza o perfil do usuário.
  */
 export async function saveProfile(profile: UserProfile): Promise<number> {
-  const existing = await getActiveProfile();
-  if (existing?.id) {
-    await db.profiles.update(existing.id, {
-      ...profile,
-      preWorkoutFormula: profile.preWorkoutFormula || USER_PRE_WORKOUT_FORMULA,
-      coffeeConfig: profile.coffeeConfig || DEFAULT_COFFEE_CONFIG,
-      updatedAt: new Date().toISOString()
-    });
-    return existing.id;
-  }
-  return (await db.profiles.add({
+  const normalized: UserProfile = {
     ...profile,
     preWorkoutFormula: profile.preWorkoutFormula || USER_PRE_WORKOUT_FORMULA,
     coffeeConfig: profile.coffeeConfig || DEFAULT_COFFEE_CONFIG,
-    createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
-  })) as number;
+  };
+
+  const existing = await getActiveProfile();
+  let id: number;
+
+  if (existing?.id) {
+    // O `id` é a chave primária e não pode ir no objeto de atualização.
+    const { id: _ignored, ...changes } = normalized;
+    await db.profiles.update(existing.id, changes);
+    id = existing.id;
+  } else {
+    id = (await db.profiles.add({
+      ...normalized,
+      createdAt: profile.createdAt || new Date().toISOString()
+    })) as number;
+  }
+
+  // Espelha na nuvem quando há sessão do Supabase (não bloqueia o fluxo local).
+  void pushProfile(normalized);
+
+  return id;
 }
 
 /**
@@ -274,6 +291,11 @@ export async function logWeightEntry(date: string, weightKg: number, bodyFatPerc
       }
     }
   });
+
+  const savedForDate = smoothed.find((log) => log.date === date);
+  if (savedForDate) {
+    void pushWeightLog(savedForDate);
+  }
 }
 
 /**
@@ -301,6 +323,8 @@ export async function applySplitTemplate(template: SplitTemplateType): Promise<v
     await db.routines.clear();
     await db.routines.bulkAdd(routines);
   });
+
+  void pushRoutines(await db.routines.toArray());
 }
 
 
@@ -377,6 +401,47 @@ export async function generateInitialMealPlans(
     await db.mealPlans.clear();
     await db.mealPlans.bulkAdd(plans);
   });
+
+  void pushMealPlans(await db.mealPlans.toArray());
+}
+
+/**
+ * Última carga usada em cada exercício, a partir das sessões concluídas.
+ *
+ * Sem isto, o modal de treino abria toda série com 20 kg fixos: o motor de
+ * dupla progressão sugeria "suba para 24 kg" e na sessão seguinte o usuário
+ * tinha que redigitar tudo à mão.
+ */
+export async function getLastWeightByExercise(): Promise<Map<string, number>> {
+  // Basta um histórico recente: varrer anos de sessões a cada abertura de
+  // treino não muda o resultado e só custa tempo.
+  const RECENT_SESSIONS = 60;
+
+  const sessions = (await db.sessionLogs.toArray())
+    .filter((s) => s.completed)
+    .sort((a, b) => a.date.localeCompare(b.date)) // mais antigo primeiro
+    .slice(-RECENT_SESSIONS);
+
+  const lastWeights = new Map<string, number>();
+
+  for (const session of sessions) {
+    for (const exerciseLog of session.exerciseLogs || []) {
+      const completedSets = exerciseLog.sets.filter((set) => set.completed);
+      if (completedSets.length === 0) continue;
+
+      // A maior carga registrada na sessão é a referência de trabalho.
+      const heaviest = completedSets.reduce((max, set) => {
+        const value = Number(set.weightKg) || 0;
+        return value > max ? value : max;
+      }, 0);
+
+      if (heaviest > 0) {
+        lastWeights.set(exerciseLog.exerciseId, heaviest);
+      }
+    }
+  }
+
+  return lastWeights;
 }
 
 /**

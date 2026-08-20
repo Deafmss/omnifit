@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { calculateBMR, calculateMetabolicStats } from '../metabolism';
+import { calculateBMR, calculateMetabolicStats, calculateTDEE } from '../metabolism';
 import { calculateFoodNutrients, calculateMacroSwap, generateWeeklyShoppingList } from '../macroSolver';
-import { auditWorkoutRoutines, evaluateDoubleProgression, estimateWorkoutCalories } from '../trainingEngine';
+import {
+  auditWorkoutRoutines,
+  evaluateDoubleProgression,
+  estimateWorkoutCalories,
+  getVolumeLandmarks
+} from '../trainingEngine';
 import { calculateWeightEMA, evaluateAdaptiveMetabolism } from '../adaptiveEngine';
 import { UserProfile, FoodItem, Exercise, WorkoutRoutine, MealPlan } from '../../storage/types';
 
@@ -173,15 +178,72 @@ describe('Motor de Treinamento Biomecânico', () => {
   });
 
   it('deve sugerir aumento de carga quando o usuário bate o teto de reps (Dupla Progressão)', () => {
+    // Incremento proporcional: 5% de 60 kg = 3 kg no composto.
     const progress = evaluateDoubleProgression(60, [10, 10, 10], 6, 10, true);
     expect(progress.shouldIncreaseLoad).toBe(true);
-    expect(progress.suggestedWeightKg).toBe(64); // +4kg no composto
+    expect(progress.suggestedWeightKg).toBe(63);
   });
 
-  it('deve estimar calorias gastas no treino por METs', () => {
-    // 60 min de musculação (6.0 METs) para 80kg = 6.0 * 80 * 1 = 480 kcal
+  it('deve escalar o incremento de carga proporcionalmente, respeitando o piso', () => {
+    // Carga leve: o piso absoluto evita saltos percentuais absurdos, mas
+    // também impede que +4 kg fixos representem 40% de aumento em 10 kg.
+    const light = evaluateDoubleProgression(10, [12, 12, 12], 8, 12, true);
+    expect(light.suggestedWeightKg).toBe(12); // +2 kg (piso), não +4
+
+    // Carga pesada: 5% de 200 kg = 10 kg, no teto do passo.
+    const heavy = evaluateDoubleProgression(200, [10, 10, 10], 6, 10, true);
+    expect(heavy.suggestedWeightKg).toBe(210);
+
+    // Isolador usa metade do percentual e piso menor.
+    const isolation = evaluateDoubleProgression(20, [15, 15, 15], 12, 15, false);
+    expect(isolation.suggestedWeightKg).toBe(21); // +1 kg (piso)
+  });
+
+  it('deve estimar o gasto ADICIONAL do treino, descontando o metabolismo de repouso', () => {
+    // 60 min a 6.0 METs para 80 kg. Desconta 1 MET (o repouso do mesmo
+    // período, já contido no TDEE): (6 - 1) * 80 * 1 = 400 kcal.
+    // Sem o desconto o valor era 480 kcal, superestimando ~20% e contando
+    // duas vezes as calorias basais da hora de treino.
     const cals = estimateWorkoutCalories(60, 80, 6.0);
-    expect(cals).toBe(480);
+    expect(cals).toBe(400);
+  });
+
+  it('deve reportar volume de manutenção quando fica entre MV e MEV', () => {
+    // Peitoral intermediário: MV 6, MEV 8. Com 6 séries o status precisa ser
+    // 'maintenance' — antes esse ramo era inalcançável, porque a checagem de
+    // "abaixo do MEV" vinha primeiro e capturava todos esses casos.
+    const exerciseMap = new Map<string, Exercise>([
+      [
+        'supino',
+        {
+          id: 'supino',
+          name: 'Supino Reto',
+          primaryMuscle: 'chest',
+          secondaryMuscles: [],
+          category: 'compound',
+          mets: 6,
+          minReps: 6,
+          maxReps: 10,
+          defaultRestSeconds: 120,
+          instructions: ''
+        }
+      ]
+    ]);
+
+    const routines: WorkoutRoutine[] = [
+      {
+        name: 'A',
+        splitCode: 'A',
+        targetMuscles: ['chest'],
+        exercises: [{ exerciseId: 'supino', targetSets: 6, minReps: 6, maxReps: 10, restSeconds: 120 }]
+      }
+    ];
+
+    const audit = auditWorkoutRoutines(routines, exerciseMap, 'intermediate');
+    const chest = audit.find((a) => a.muscle === 'chest');
+
+    expect(chest?.totalEffectiveSets).toBe(6);
+    expect(chest?.status).toBe('maintenance');
   });
 });
 
@@ -207,5 +269,128 @@ describe('Motor Adaptativo de Malha Fechada', () => {
     expect(result.status).toBe('stalled');
     expect(result.revealedTDEE).toBe(2200); // Já que peso não variou, TDEE real = calorias consumidas
     expect(result.suggestedCaloricChangeKcal).toBeLessThan(0); // Redução calórica sugerida
+  });
+});
+
+describe('Marcos de volume por nível de experiência', () => {
+  it('deve manter o MAV sempre igual ou acima do MEV', () => {
+    const muscles = [
+      'chest', 'back', 'quadriceps', 'hamstrings', 'glutes',
+      'calves', 'shoulders', 'biceps', 'triceps', 'abs'
+    ] as const;
+    const levels = ['beginner', 'intermediate', 'advanced'] as const;
+
+    for (const muscle of levels.flatMap(() => muscles)) {
+      for (const level of levels) {
+        const marks = getVolumeLandmarks(muscle, level);
+        const label = `${muscle}/${level}`;
+
+        // Ordem lógica dos marcos: MV <= MEV <= MAVmin <= MAVmax <= MRV.
+        // Antes, glúteos e abdômen de iniciante tinham mavMin (4) abaixo do
+        // mev (6), invertendo a escala.
+        expect(marks.mev, label).toBeGreaterThanOrEqual(marks.mv);
+        expect(marks.mavMin, label).toBeGreaterThanOrEqual(marks.mev);
+        expect(marks.mavMax, label).toBeGreaterThanOrEqual(marks.mavMin);
+        expect(marks.mrv, label).toBeGreaterThanOrEqual(marks.mavMax);
+      }
+    }
+  });
+
+  it('deve escalar o volume com o nível de experiência', () => {
+    const beginner = getVolumeLandmarks('chest', 'beginner');
+    const intermediate = getVolumeLandmarks('chest', 'intermediate');
+    const advanced = getVolumeLandmarks('chest', 'advanced');
+
+    expect(intermediate.mrv).toBeGreaterThan(beginner.mrv);
+    expect(advanced.mrv).toBeGreaterThan(intermediate.mrv);
+  });
+});
+
+describe('Gasto Energético Total (TDEE)', () => {
+  it('deve aumentar com o volume de treino, dentro de limites plausíveis', () => {
+    const sedentary = calculateTDEE(1800, 0, 0);
+    const moderate = calculateTDEE(1800, 4, 60);
+    const heavy = calculateTDEE(1800, 6, 90);
+
+    // Sem treino, o PAL é o basal de 1.2.
+    expect(sedentary).toBe(Math.round(1800 * 1.2));
+    expect(moderate).toBeGreaterThan(sedentary);
+    expect(heavy).toBeGreaterThan(moderate);
+
+    // O multiplicador é limitado a 2.0 para não gerar valores irreais.
+    expect(calculateTDEE(1800, 7, 240)).toBeLessThanOrEqual(1800 * 2);
+  });
+
+  it('deve tratar entradas negativas como ausência de treino', () => {
+    expect(calculateTDEE(1800, -3, -60)).toBe(Math.round(1800 * 1.2));
+  });
+});
+
+describe('Ajuste calórico do check-in aplicado ao alvo', () => {
+  const baseProfile: UserProfile = {
+    name: 'Teste',
+    age: 30,
+    gender: 'male',
+    heightCm: 180,
+    weightKg: 80,
+    bodyFatPercentage: 18,
+    experienceLevel: 'intermediate',
+    goal: 'fat_loss',
+    trainingDaysPerWeek: 4,
+    sessionDurationMin: 60,
+    dietMode: 'guided',
+    mealsPerDay: 4,
+    isCalibrated: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z'
+  };
+
+  // Manutenção deixa o alvo igual ao TDEE, bem acima do piso de segurança,
+  // isolando o efeito puro do ajuste.
+  const maintenanceProfile: UserProfile = { ...baseProfile, goal: 'maintenance' };
+
+  it('deve subtrair o ajuste acumulado da meta calórica', () => {
+    const semAjuste = calculateMetabolicStats(maintenanceProfile);
+    const comAjuste = calculateMetabolicStats({ ...maintenanceProfile, calorieAdjustmentKcal: -150 });
+
+    // O ajuste precisa CHEGAR ao alvo: antes ele era gravado no log do
+    // check-in e nunca influenciava a dieta.
+    expect(comAjuste.targetCalories).toBe(semAjuste.targetCalories - 150);
+    expect(comAjuste.appliedCalorieAdjustmentKcal).toBe(-150);
+  });
+
+  it('deve somar o ajuste positivo à meta', () => {
+    const semAjuste = calculateMetabolicStats(maintenanceProfile);
+    const comAjuste = calculateMetabolicStats({ ...maintenanceProfile, calorieAdjustmentKcal: 200 });
+
+    expect(comAjuste.targetCalories).toBe(semAjuste.targetCalories + 200);
+  });
+
+  it('não deve deixar o ajuste derrubar a meta abaixo do piso de segurança', () => {
+    // Em emagrecimento o alvo já parte de um déficit de 22%. O piso é TMB + 50,
+    // para que uma sequência de check-ins não empurre a dieta a um patamar
+    // perigosamente baixo.
+    const comAjuste = calculateMetabolicStats({ ...baseProfile, calorieAdjustmentKcal: -400 });
+
+    expect(comAjuste.targetCalories).toBeGreaterThanOrEqual(comAjuste.bmr + 50);
+    // O déficit registrado precisa refletir o alvo que realmente valeu.
+    expect(comAjuste.dailyDeficitOrSurplusKcal).toBe(comAjuste.targetCalories - comAjuste.tdee);
+  });
+
+  it('deve limitar o ajuste a 30% do TDEE e nunca descer abaixo da TMB', () => {
+    const extremo = calculateMetabolicStats({ ...maintenanceProfile, calorieAdjustmentKcal: -5000 });
+
+    expect(extremo.appliedCalorieAdjustmentKcal).toBe(-Math.round(extremo.tdee * 0.3));
+    // Piso de segurança: nunca abaixo da taxa metabólica basal.
+    expect(extremo.targetCalories).toBeGreaterThanOrEqual(extremo.bmr);
+  });
+
+  it('deve recalcular os macros a partir da meta ajustada', () => {
+    const comAjuste = calculateMetabolicStats({ ...baseProfile, calorieAdjustmentKcal: -300 });
+    const somaMacros =
+      comAjuste.proteinGrams * 4 + comAjuste.carbGrams * 4 + comAjuste.fatGrams * 9;
+
+    // Os macros precisam fechar com a meta (tolerância de arredondamento).
+    expect(Math.abs(somaMacros - comAjuste.targetCalories)).toBeLessThan(30);
   });
 });

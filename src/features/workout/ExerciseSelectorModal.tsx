@@ -3,6 +3,7 @@ import { Search, Plus, Dumbbell, Check } from 'lucide-react';
 import { Exercise, MuscleGroup } from '../../core/storage/types';
 import { EXERCISE_DATABASE, EXERCISE_DATABASE_MAP } from '../../core/data/exerciseDatabase';
 import { MUSCLE_LABELS } from '../../core/math/trainingEngine';
+import { normalizeForSearch } from '../../core/math/macroSolver';
 import { Modal } from '../../components/ui/Modal';
 
 interface ExerciseSelectorModalProps {
@@ -30,8 +31,11 @@ export const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
   const [customName, setCustomName] = useState('');
   const [customMuscle, setCustomMuscle] = useState<MuscleGroup>('chest');
 
+  // Busca insensível a acentos: "triceps" precisa encontrar "Tríceps".
+  const normalizedSearch = normalizeForSearch(search.trim());
   const filtered = EXERCISE_DATABASE.filter((ex) => {
-    const matchesSearch = search === '' || ex.name.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch =
+      normalizedSearch === '' || normalizeForSearch(ex.name).includes(normalizedSearch);
     const matchesMuscle = selectedMuscle === 'all' || ex.primaryMuscle === selectedMuscle;
     return matchesSearch && matchesMuscle;
   });

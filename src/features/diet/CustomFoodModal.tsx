@@ -36,22 +36,40 @@ export const CustomFoodModal: React.FC<CustomFoodModalProps> = ({
       return;
     }
 
-    const cleanPortion = Number(portionGrams) || 100;
+    // A porção precisa ser positiva: um valor negativo produziria macros
+    // negativos, e zero dividiria por zero.
+    const parsedPortion = Number(portionGrams);
+    const cleanPortion = Number.isFinite(parsedPortion) && parsedPortion > 0 ? parsedPortion : 100;
     const factor = 100 / cleanPortion;
 
-    const cleanCalories = (Number(calories) || 0) * factor;
-    const cleanProtein = (Number(protein) || 0) * factor;
-    const cleanCarbs = (Number(carbs) || 0) * factor;
-    const cleanFat = (Number(fat) || 0) * factor;
-    const cleanFiber = (Number(fiber) || 0) * factor;
-    const cleanSodium = (Number(sodium) || 0) * factor;
+    const positive = (value: number | string) => Math.max(0, Number(value) || 0);
+
+    const cleanCalories = positive(calories) * factor;
+    const cleanProtein = positive(protein) * factor;
+    const cleanCarbs = positive(carbs) * factor;
+    const cleanFat = positive(fat) * factor;
+    const cleanFiber = positive(fiber) * factor;
+    const cleanSodium = positive(sodium) * factor;
+
+    // Slug sem acentos, no mesmo padrão dos ids da base oficial.
+    const slug = name
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 40);
 
     const newFood: FoodItem = {
-      id: `custom_${Date.now()}_${name.toLowerCase().replace(/\s+/g, '_')}`,
+      id: `custom_${Date.now().toString(36)}_${slug || 'alimento'}`,
       name: name.trim(),
       category,
       servingName: `Porção (${cleanPortion}g)`,
       baseGrams: 100,
+      // Preserva a porção informada pelo usuário para as medidas caseiras;
+      // antes ela era descartada e a tela voltava a exibir apenas gramas.
+      servingGrams: cleanPortion,
       caloriesPer100g: Math.round(cleanCalories),
       proteinPer100g: Number(cleanProtein.toFixed(1)),
       carbsPer100g: Number(cleanCarbs.toFixed(1)),

@@ -1,5 +1,6 @@
-import { 
-  RotateCcw, 
+import { useEffect, useState } from 'react';
+import {
+  RotateCcw,
   ShieldAlert,
   LogOut,
   Smartphone
@@ -8,6 +9,13 @@ import { UserProfile, MetabolicStats } from '../../core/storage/types';
 import { UserAccount } from '../../core/auth/authService';
 import { Modal } from '../ui/Modal';
 import { db } from '../../core/storage/db';
+import {
+  isInstallPromptAvailable,
+  isIOSDevice,
+  isRunningStandalone,
+  showInstallPrompt
+} from '../../core/pwa/installPrompt';
+import { isCloudSyncActive } from '../../core/supabase/cloudSync';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -28,10 +36,72 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onReOnboard,
   onLogout
 }) => {
+  const [installMsg, setInstallMsg] = useState<string | null>(null);
+  const [cloudSyncOn, setCloudSyncOn] = useState(false);
+
+  // Informa se os dados estão sendo espelhados na nuvem: só acontece com login
+  // pelo Google, já que as políticas do servidor exigem sessão autenticada.
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    void isCloudSyncActive().then((active) => {
+      if (!cancelled) setCloudSyncOn(active);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  /**
+   * Dispara o prompt nativo de instalação de verdade. A versão anterior apenas
+   * limpava a chave de "dispensado" e recarregava a página, o que no Android
+   * não instalava nada nem fazia o cartão reaparecer.
+   */
+  const handleInstallApp = async () => {
+    setInstallMsg(null);
+
+    if (isInstallPromptAvailable()) {
+      const outcome = await showInstallPrompt();
+      if (outcome === 'accepted') {
+        onClose();
+        return;
+      }
+      if (outcome === 'dismissed') {
+        setInstallMsg('Instalação cancelada. Você pode tentar novamente quando quiser.');
+        return;
+      }
+    }
+
+    if (isIOSDevice()) {
+      setInstallMsg(
+        'No iPhone e iPad: toque em Compartilhar no Safari e escolha "Adicionar à Tela de Início".'
+      );
+      return;
+    }
+
+    setInstallMsg(
+      'Seu navegador não ofereceu a instalação automática. Abra o menu do navegador e escolha "Instalar aplicativo" ou "Adicionar à tela inicial".'
+    );
+  };
+
   const handleResetApp = async () => {
-    if (confirm('Tem certeza de que deseja resetar todos os dados e refazer a calibração do zero?')) {
+    if (
+      !confirm(
+        'Isto apaga TODOS os seus dados deste dispositivo: perfil, cardápio, fichas de treino, pesagens e histórico. Esta ação não pode ser desfeita. Deseja continuar?'
+      )
+    ) {
+      return;
+    }
+
+    // Segunda confirmação: é destrutivo e irreversível.
+    if (!confirm('Confirma o apagamento definitivo de todos os dados?')) return;
+
+    try {
       await db.delete();
       window.location.reload();
+    } catch (err) {
+      console.error('Erro ao resetar os dados:', err);
+      alert('Não foi possível apagar os dados. Feche outras abas do OmniFit e tente novamente.');
     }
   };
 
@@ -188,17 +258,26 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
         {/* Re-calibrate / Reset Actions */}
         <div className="space-y-2 pt-2">
-          <button
-            onClick={() => {
-              localStorage.removeItem('omnifit_pwa_dismissed_at');
-              onClose();
-              window.location.reload();
-            }}
-            className="w-full py-3 rounded-2xl bg-[#060A14] hover:bg-[#060A14]/80 text-[#A3E635] border border-[#84CC16]/40 font-bold text-xs transition-all flex items-center justify-center gap-2"
-          >
-            <Smartphone className="w-4 h-4" />
-            <span>Instalar Aplicativo no Celular (PWA)</span>
-          </button>
+          <div className="p-3 rounded-2xl bg-[#060A14] border border-white/[0.06] flex items-center justify-between text-[11px] font-mono">
+            <span className="text-slate-400">Backup na nuvem</span>
+            <span className={cloudSyncOn ? 'text-[#A3E635] font-bold' : 'text-slate-500 font-bold'}>
+              {cloudSyncOn ? 'Ativo' : 'Somente neste aparelho'}
+            </span>
+          </div>
+
+          {!isRunningStandalone() && (
+            <button
+              onClick={handleInstallApp}
+              className="w-full py-3 rounded-2xl bg-[#060A14] hover:bg-[#060A14]/80 text-[#A3E635] border border-[#84CC16]/40 font-bold text-xs transition-all flex items-center justify-center gap-2"
+            >
+              <Smartphone className="w-4 h-4" />
+              <span>Instalar Aplicativo no Celular (PWA)</span>
+            </button>
+          )}
+
+          {installMsg && (
+            <p className="text-[10px] font-mono text-amber-400 leading-snug px-1">{installMsg}</p>
+          )}
 
           <button
             onClick={() => {

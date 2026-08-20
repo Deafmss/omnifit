@@ -277,16 +277,64 @@ function isAllowed(foodId: string, restrictions?: DietRestrictions): boolean {
   return true;
 }
 
-/** Escolhe o primeiro candidato permitido; cai para a base econômica se nada servir. */
+/**
+ * Escolhe o primeiro candidato permitido pelas restrições.
+ * Se nenhum servir, recorre a um alimento coringa — que também é validado,
+ * para que o fallback não reintroduza justamente o que foi restringido.
+ */
 function pickFood(candidates: string[], restrictions?: DietRestrictions): FoodItem | undefined {
   for (const id of candidates) {
     if (isAllowed(id, restrictions)) {
       return FOOD_DATABASE_MAP.get(id);
     }
   }
-  // Último recurso: ovo (ou tofu, para vegetarianos que também evitam ovo não é o caso)
-  const fallback = restrictions?.vegetarian ? 'tofu_firme' : 'ovo_galinha_cozido';
-  return FOOD_DATABASE_MAP.get(fallback);
+
+  const fallbacks = restrictions?.vegetarian
+    ? ['tofu_firme', 'ovo_galinha_cozido', 'feijao_carioca_cozido']
+    : ['ovo_galinha_cozido', 'peito_frango_grelhado', 'feijao_carioca_cozido'];
+
+  for (const id of fallbacks) {
+    if (isAllowed(id, restrictions)) {
+      return FOOD_DATABASE_MAP.get(id);
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Adiciona uma porção somando as gramas se o alimento já estiver na refeição.
+ * Um mesmo alimento pode ser escolhido para dois papéis (o coringa da gordura
+ * caindo no ovo que já é a proteína, por exemplo) e apareceria duplicado.
+ */
+function addPortion(
+  portions: { foodId: string; grams: number; consumed: boolean }[],
+  foodId: string,
+  grams: number
+): void {
+  if (grams <= 0) return;
+
+  const existing = portions.find((p) => p.foodId === foodId);
+  if (existing) {
+    existing.grams += grams;
+    return;
+  }
+
+  portions.push({ foodId, grams, consumed: false });
+}
+
+/** Soma de um macro entre as porções já montadas. */
+function macroInPortions(
+  portions: { foodId: string; grams: number }[],
+  macro: 'protein' | 'carbs' | 'fat'
+): number {
+  return portions.reduce((acc, p) => {
+    const food = FOOD_DATABASE_MAP.get(p.foodId);
+    if (!food) return acc;
+    const per100 =
+      macro === 'protein' ? food.proteinPer100g : macro === 'carbs' ? food.carbsPer100g : food.fatPer100g;
+    return acc + (per100 / 100) * p.grams;
+  }, 0);
 }
 
 /** Gramas necessárias de um alimento para atingir X g de um macro, com limites sensatos. */
@@ -369,37 +417,27 @@ export function generateSmartMealPlan(options: DietOptimizerOptions): MealPlan[]
 
     const portions: { foodId: string; grams: number; consumed: boolean }[] = [];
 
+    // A ordem é proteína -> carboidrato -> gordura, e cada etapa desconta o que
+    // as anteriores já entregaram do macro em questão.
     if (proteinFood) {
-      const grams = gramsForMacro(proteinFood, 'protein', mealProtein, 30, 350);
-      portions.push({ foodId: proteinFood.id, grams, consumed: false });
+      addPortion(portions, proteinFood.id, gramsForMacro(proteinFood, 'protein', mealProtein, 30, 350));
     }
 
     if (carbFood) {
-      // Desconta o carboidrato que já vem da fonte de proteína (leite, iogurte, feijão).
-      const carbsFromProtein = proteinFood
-        ? (proteinFood.carbsPer100g / 100) * (portions[0]?.grams || 0)
-        : 0;
-      const remainingCarbs = Math.max(0, mealCarbs - carbsFromProtein);
-      const grams = gramsForMacro(carbFood, 'carbs', remainingCarbs, 20, 400);
-      portions.push({ foodId: carbFood.id, grams, consumed: false });
+      // Fontes de proteína como iogurte, leite e feijão trazem carboidrato junto.
+      const remainingCarbs = Math.max(0, mealCarbs - macroInPortions(portions, 'carbs'));
+      addPortion(portions, carbFood.id, gramsForMacro(carbFood, 'carbs', remainingCarbs, 20, 400));
     }
 
     if (fatFood) {
-      const fatFromOthers = portions.reduce((acc, p) => {
-        const food = FOOD_DATABASE_MAP.get(p.foodId);
-        return acc + (food ? (food.fatPer100g / 100) * p.grams : 0);
-      }, 0);
-      const remainingFat = Math.max(0, mealFat - fatFromOthers);
-      // Gorduras são densas: 5 g a 40 g é a faixa prática de uma refeição.
-      const grams = gramsForMacro(fatFood, 'fat', remainingFat, 0, 40);
-      if (grams > 0) {
-        portions.push({ foodId: fatFood.id, grams, consumed: false });
-      }
+      const remainingFat = Math.max(0, mealFat - macroInPortions(portions, 'fat'));
+      // Gorduras são densas: até 40 g por refeição é a faixa prática.
+      addPortion(portions, fatFood.id, gramsForMacro(fatFood, 'fat', remainingFat, 0, 40));
     }
 
     // Vegetal nas refeições principais, fruta nas leves: volume, fibra e micronutrientes.
     if (produceFood) {
-      portions.push({ foodId: produceFood.id, grams: isMainMeal ? 80 : 70, consumed: false });
+      addPortion(portions, produceFood.id, isMainMeal ? 80 : 70);
     }
 
     plans.push({

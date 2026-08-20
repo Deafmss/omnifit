@@ -76,20 +76,34 @@ export function calculateMacroSwap(
     primaryMacro = 'fat';
   }
 
-  let replacementGrams = 100;
-  if (primaryMacro === 'protein') {
-    const targetProtein = originalNutrients.protein;
-    const proteinPerGram = replacementFood.proteinPer100g / 100;
-    replacementGrams = proteinPerGram > 0 ? Math.round(targetProtein / proteinPerGram) : 100;
-  } else if (primaryMacro === 'carbs') {
-    const targetCarbs = originalNutrients.carbs;
-    const carbsPerGram = replacementFood.carbsPer100g / 100;
-    replacementGrams = carbsPerGram > 0 ? Math.round(targetCarbs / carbsPerGram) : 100;
+  // Quando o substituto não tem o macro dominante do original (trocar azeite
+  // por alface, por exemplo), iguala as CALORIAS em vez de devolver 100 g
+  // arbitrários — assim a refeição continua fechando com a meta.
+  const perGramByMacro = {
+    protein: replacementFood.proteinPer100g / 100,
+    carbs: replacementFood.carbsPer100g / 100,
+    fat: replacementFood.fatPer100g / 100
+  };
+
+  const targetByMacro = {
+    protein: originalNutrients.protein,
+    carbs: originalNutrients.carbs,
+    fat: originalNutrients.fat
+  };
+
+  let replacementGrams: number;
+  const perGram = perGramByMacro[primaryMacro];
+
+  if (perGram > 0) {
+    replacementGrams = Math.round(targetByMacro[primaryMacro] / perGram);
+  } else if (replacementFood.caloriesPer100g > 0) {
+    replacementGrams = Math.round((originalNutrients.calories / replacementFood.caloriesPer100g) * 100);
   } else {
-    const targetFat = originalNutrients.fat;
-    const fatPerGram = replacementFood.fatPer100g / 100;
-    replacementGrams = fatPerGram > 0 ? Math.round(targetFat / fatPerGram) : 100;
+    replacementGrams = 100;
   }
+
+  // Limites práticos de uma porção.
+  replacementGrams = Math.min(1000, Math.max(5, replacementGrams));
 
   const replacementNutrients = calculateFoodNutrients(replacementFood, replacementGrams);
   const calorieDifference = replacementNutrients.calories - originalNutrients.calories;
@@ -156,6 +170,17 @@ export function generateWeeklyShoppingList(
     }
     return a.name.localeCompare(b.name);
   });
+}
+
+/**
+ * Normaliza texto para busca: remove acentos e baixa a caixa, para que
+ * "acucar" encontre "Açúcar" e "pao" encontre "Pão".
+ */
+export function normalizeForSearch(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
 }
 
 export interface HouseholdPortionDisplay {

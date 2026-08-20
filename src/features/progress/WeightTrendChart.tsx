@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { WeightLog } from '../../core/storage/types';
+import { daysBetween, formatDayMonthBR } from '../../core/utils/dateUtils';
 import { TrendingDown, Scale } from 'lucide-react';
 
 interface WeightTrendChartProps {
@@ -18,10 +19,8 @@ export const WeightTrendChart: React.FC<WeightTrendChartProps> = ({ logs }) => {
     );
   }
 
-  // Se tiver apenas 1 ponto, duplica para desenhar uma linha de referência inicial
-  const data = logs.length === 1 
-    ? [logs[0], { ...logs[0], date: 'Hoje' }] 
-    : logs.slice(-14); // Últimos 14 registros
+  // Últimos 14 registros, em ordem cronológica.
+  const data = [...logs].sort((a, b) => a.date.localeCompare(b.date)).slice(-14);
 
   const weights = data.map((d) => d.weightKg);
   const emas = data.map((d) => d.emaWeightKg || d.weightKg);
@@ -37,8 +36,15 @@ export const WeightTrendChart: React.FC<WeightTrendChartProps> = ({ logs }) => {
   const paddingX = 25;
   const paddingY = 25;
 
+  // O eixo X é proporcional ao TEMPO REAL entre as pesagens. Distribuir por
+  // índice fazia pesagens do dia 1, dia 2 e dia 60 aparecerem equidistantes,
+  // mostrando uma inclinação de tendência que não corresponde à realidade.
+  const firstDate = data[0].date;
+  const spanDays = Math.max(1, daysBetween(firstDate, data[data.length - 1].date));
+
   const getX = (index: number) => {
-    return paddingX + (index / (data.length - 1 || 1)) * (width - paddingX * 2);
+    const offsetDays = daysBetween(firstDate, data[index].date);
+    return paddingX + (offsetDays / spanDays) * (width - paddingX * 2);
   };
 
   const getY = (val: number) => {
@@ -60,7 +66,9 @@ export const WeightTrendChart: React.FC<WeightTrendChartProps> = ({ logs }) => {
     y: getY(d.emaWeightKg || d.weightKg)
   }));
 
-  // Cria caminho SVG suave
+  // Com um único registro não existe tendência a desenhar: antes o código
+  // duplicava o ponto com `date: 'Hoje'` e traçava uma linha horizontal que
+  // sugeria estabilidade inexistente.
   const emaPath = emaPoints.reduce((acc, pt, i) => {
     if (i === 0) return `M ${pt.x} ${pt.y}`;
     const prev = emaPoints[i - 1];
@@ -86,7 +94,12 @@ export const WeightTrendChart: React.FC<WeightTrendChartProps> = ({ logs }) => {
 
         {activePoint && (
           <div className="text-right font-mono">
-            <span className="text-xs font-black text-white">{activePoint.weight} kg</span>
+            <span className="text-xs font-black text-white">
+              {activePoint.weight} kg
+              <span className="text-slate-500 font-mono font-normal ml-1.5">
+                {formatDayMonthBR(activePoint.date)}
+              </span>
+            </span>
             <span className="text-[10px] text-emerald-400 block font-bold">
               Tendência: {activePoint.ema.toFixed(1)} kg
             </span>
@@ -95,7 +108,7 @@ export const WeightTrendChart: React.FC<WeightTrendChartProps> = ({ logs }) => {
       </div>
 
       {/* SVG Chart Area */}
-      <div className="relative w-full overflow-hidden">
+      <div className="relative w-full overflow-hidden" onMouseLeave={() => setHoveredIndex(null)}>
         <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto overflow-visible select-none">
           <defs>
             <linearGradient id="weightAreaGrad" x1="0%" y1="0%" x2="0%" y2="100%">

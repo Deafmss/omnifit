@@ -53,7 +53,13 @@ export const MealCard: React.FC<MealCardProps> = ({
     }
   };
 
-  const [swapState, setSwapState] = useState<{ originalFoodId: string; originalGrams: number } | null>(null);
+  // Guarda também o índice da porção: trocar por foodId alterava TODAS as
+  // porções do mesmo alimento na refeição.
+  const [swapState, setSwapState] = useState<{
+    index: number;
+    originalFoodId: string;
+    originalGrams: number;
+  } | null>(null);
   const [isAddFoodOpen, setIsAddFoodOpen] = useState(false);
 
   // Estados de edição do nome e do horário da refeição
@@ -66,20 +72,20 @@ export const MealCard: React.FC<MealCardProps> = ({
   const currentTotals = calculatePortionsTotal(meal.portions, FOOD_DATABASE_MAP);
   const allConsumed = meal.portions.length > 0 && meal.portions.every((p) => p.consumed);
 
+  // As porções são recriadas por map: mutar `[...meal.portions][index]` alterava
+  // o objeto original dentro da prop `meal`.
   const togglePortionConsumed = (index: number) => {
-    const newPortions = [...meal.portions];
-    newPortions[index].consumed = !newPortions[index].consumed;
+    const newPortions = meal.portions.map((p, i) =>
+      i === index ? { ...p, consumed: !p.consumed } : p
+    );
     onUpdateMeal({ ...meal, portions: newPortions });
   };
 
   const handleApplySwap = (newFoodId: string, newGrams: number) => {
     if (!swapState) return;
-    const newPortions = meal.portions.map((p) => {
-      if (p.foodId === swapState.originalFoodId) {
-        return { ...p, foodId: newFoodId, grams: newGrams };
-      }
-      return p;
-    });
+    const newPortions = meal.portions.map((p, i) =>
+      i === swapState.index ? { ...p, foodId: newFoodId, grams: newGrams } : p
+    );
     onUpdateMeal({ ...meal, portions: newPortions });
     setSwapState(null);
   };
@@ -96,10 +102,10 @@ export const MealCard: React.FC<MealCardProps> = ({
   };
 
   const handleAdjustHouseholdUnits = (index: number, delta: number, servingGrams: number) => {
-    const newPortions = [...meal.portions];
-    const currentGrams = newPortions[index].grams;
-    const newGrams = Math.max(servingGrams, currentGrams + (delta * servingGrams));
-    newPortions[index].grams = newGrams;
+    const newPortions = meal.portions.map((p, i) => {
+      if (i !== index) return p;
+      return { ...p, grams: Math.max(servingGrams, p.grams + delta * servingGrams) };
+    });
     onUpdateMeal({ ...meal, portions: newPortions });
   };
 
@@ -328,7 +334,7 @@ export const MealCard: React.FC<MealCardProps> = ({
                     <div className="flex items-center gap-1 shrink-0">
                       <button
                         type="button"
-                        onClick={() => setSwapState({ originalFoodId: food.id, originalGrams: portion.grams })}
+                        onClick={() => setSwapState({ index: idx, originalFoodId: food.id, originalGrams: portion.grams })}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-[#A3E635] hover:bg-white/5 transition-all"
                         title="Troca Inteligente de Alimento"
                       >
@@ -363,11 +369,13 @@ export const MealCard: React.FC<MealCardProps> = ({
       )}
 
       {/* Food Picker Modal */}
-      <FoodPickerModal
-        isOpen={isAddFoodOpen}
-        onClose={() => setIsAddFoodOpen(false)}
-        onSelectFood={handleAddFood}
-      />
+      {isAddFoodOpen && (
+        <FoodPickerModal
+          isOpen
+          onClose={() => setIsAddFoodOpen(false)}
+          onSelectFood={handleAddFood}
+        />
+      )}
 
       {/* Macro Swap Modal */}
       {swapState && (

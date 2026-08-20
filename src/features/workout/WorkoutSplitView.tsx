@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { WorkoutRoutine, UserProfile, Exercise, WorkoutSessionLog } from '../../core/storage/types';
 import { db, applySplitTemplate, addNewRoutine, deleteRoutine, SplitTemplateType } from '../../core/storage/db';
+import { todayLocal, toLocalDateString, startOfWeekMonday, addDays } from '../../core/utils/dateUtils';
+import { pushRoutines } from '../../core/supabase/cloudSync';
 import { EXERCISE_DATABASE_MAP } from '../../core/data/exerciseDatabase';
 import { MUSCLE_LABELS } from '../../core/math/trainingEngine';
 import { ActiveWorkoutModal } from './ActiveWorkoutModal';
@@ -49,45 +51,58 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
   // Estados de edição do nome da ficha
   const [isEditingTitle, setIsEditingTitle] = useState<boolean>(false);
   const [tempTitle, setTempTitle] = useState<string>('');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const loadData = async () => {
-    const list = await db.routines.toArray();
-    for (let i = 0; i < list.length; i++) {
-      if (list[i].dayOfWeek === undefined) {
-        list[i].dayOfWeek = (i + 1) % 7;
-        if (list[i].id) {
-          await db.routines.update(list[i].id!, { dayOfWeek: (i + 1) % 7 });
+    try {
+      const list = await db.routines.toArray();
+
+      // Atribui dias apenas às fichas que ainda não têm um, escolhendo sempre
+      // um dia livre: usar `(i + 1) % 7` cegamente colidia com dias já ocupados
+      // e a ficha sobreposta ficava inacessível na interface.
+      const taken = new Set(list.filter((r) => r.dayOfWeek !== undefined).map((r) => r.dayOfWeek));
+      const preference = [1, 2, 3, 4, 5, 6, 0];
+
+      for (const routine of list) {
+        if (routine.dayOfWeek !== undefined) continue;
+
+        const freeDay = preference.find((d) => !taken.has(d));
+        if (freeDay === undefined) continue;
+
+        routine.dayOfWeek = freeDay;
+        taken.add(freeDay);
+        if (routine.id) {
+          await db.routines.update(routine.id, { dayOfWeek: freeDay });
         }
       }
-    }
-    setRoutines(list);
 
-    const logs = await db.sessionLogs.toArray();
-    setSessionLogs(logs);
+      setRoutines(list);
+      setSessionLogs(await db.sessionLogs.toArray());
+      setErrorMsg(null);
+
+      // Espelha as fichas na nuvem, cobrindo as edições feitas nesta tela
+      // (adicionar/remover exercício, renomear, trocar de dia).
+      void pushRoutines(list);
+    } catch (err) {
+      console.error('Erro ao carregar os treinos:', err);
+      setErrorMsg('Não foi possível carregar suas fichas de treino. Recarregue a página.');
+    }
   };
 
   useEffect(() => {
     loadData();
   }, []);
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = todayLocal();
   const todayCompletedLog = sessionLogs.find((s) => s.date === todayStr && s.completed);
 
   // Mapa de dias da semana atual que têm treino concluído
-  const now = new Date();
-  const currentDayOfWeek = now.getDay();
-  const distanceToMonday = (currentDayOfWeek + 6) % 7;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - distanceToMonday);
-
+  const monday = startOfWeekMonday();
   const currentWeekDatesMap = new Map<number, boolean>();
   for (let i = 0; i < 7; i++) {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    const dayIdx = d.getDay();
-    const dStr = d.toISOString().split('T')[0];
-    const isDone = sessionLogs.some((s) => s.date === dStr && s.completed);
-    currentWeekDatesMap.set(dayIdx, isDone);
+    const d = addDays(monday, i);
+    const dStr = toLocalDateString(d);
+    currentWeekDatesMap.set(d.getDay(), sessionLogs.some((s) => s.date === dStr && s.completed));
   }
 
   // Encontra a rotina correspondente ao dia selecionado
@@ -187,6 +202,11 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
 
   return (
     <div className="space-y-4 pb-24 max-w-lg mx-auto p-4 animate-in fade-in duration-300">
+      {errorMsg && (
+        <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-semibold">
+          {errorMsg}
+        </div>
+      )}
       {/* Top Action Bar */}
       <div className="flex items-center justify-between gap-2 px-0.5">
         <div className="flex items-center gap-1.5">
@@ -551,24 +571,32 @@ export const WorkoutSplitView: React.FC<WorkoutSplitViewProps> = ({ profile }) =
         />
       )}
 
-      <WorkoutAuditorModal
-        isOpen={isAuditorOpen}
-        onClose={() => setIsAuditorOpen(false)}
-        routines={routines}
-        level={profile.experienceLevel}
-      />
+      {/* Modais renderizados sob demanda: montados sempre, o estado interno
+          deles congelava na primeira renderização desta tela. */}
+      {isAuditorOpen && (
+        <WorkoutAuditorModal
+          isOpen
+          onClose={() => setIsAuditorOpen(false)}
+          routines={routines}
+          level={profile.experienceLevel}
+        />
+      )}
 
-      <ExerciseSelectorModal
-        isOpen={isAddExerciseOpen}
-        onClose={() => setIsAddExerciseOpen(false)}
-        onSelectExercise={handleAddExercise}
-      />
+      {isAddExerciseOpen && (
+        <ExerciseSelectorModal
+          isOpen
+          onClose={() => setIsAddExerciseOpen(false)}
+          onSelectExercise={handleAddExercise}
+        />
+      )}
 
-      <SplitTemplateModal
-        isOpen={isTemplateModalOpen}
-        onClose={() => setIsTemplateModalOpen(false)}
-        onSelectTemplate={handleApplyTemplate}
-      />
+      {isTemplateModalOpen && (
+        <SplitTemplateModal
+          isOpen
+          onClose={() => setIsTemplateModalOpen(false)}
+          onSelectTemplate={handleApplyTemplate}
+        />
+      )}
     </div>
   );
 };

@@ -25,6 +25,7 @@ import {
   setTodayWaterIntake
 } from '../../core/storage/db';
 import { todayLocal } from '../../core/utils/dateUtils';
+import { pushMealPlans } from '../../core/supabase/cloudSync';
 import { FOOD_DATABASE_MAP } from '../../core/data/tacoDatabase';
 import { calculateFoodNutrients } from '../../core/math/macroSolver';
 import { MealCard } from './MealCard';
@@ -73,6 +74,11 @@ export const DietOverview: React.FC<DietOverviewProps> = ({ profile: initialProf
 
       const plans = await db.mealPlans.orderBy('order').toArray();
       setMealPlans(plans);
+
+      // Espelha o cardápio na nuvem. Cobre também as edições feitas direto na
+      // tela (adicionar alimento, trocar porção), que não passam pelo gerador.
+      // O cloudSync agrupa as chamadas com debounce.
+      void pushMealPlans(plans);
 
       const thermo = await getTodayThermogenicLog();
       setThermogenicLog(thermo);

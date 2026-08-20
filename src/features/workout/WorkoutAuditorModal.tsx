@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Info } from 'lucide-react';
 import { WorkoutRoutine, ExperienceLevel } from '../../core/storage/types';
 import { EXERCISE_DATABASE_MAP } from '../../core/data/exerciseDatabase';
@@ -19,7 +19,12 @@ export const WorkoutAuditorModal: React.FC<WorkoutAuditorModalProps> = ({
   routines,
   level
 }) => {
-  const auditResults = auditWorkoutRoutines(routines, EXERCISE_DATABASE_MAP, level);
+  // Memoizado: a auditoria varre todas as fichas e exercícios, e antes era
+  // recalculada em cada renderização da tela de treino.
+  const auditResults = useMemo(
+    () => auditWorkoutRoutines(routines, EXERCISE_DATABASE_MAP, level),
+    [routines, level]
+  );
 
   const getStatusBadge = (status: MuscleAuditResult['status']) => {
     switch (status) {

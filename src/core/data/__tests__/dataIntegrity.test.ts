@@ -178,6 +178,79 @@ describe('Integridade do montador automático de cardápio', () => {
     expect(totals.protein).toBeGreaterThan(180 * 0.8);
   });
 
+  it('nunca deve repetir o mesmo alimento dentro de uma refeição', () => {
+    // NOTA: com as listas de candidatos atuais nenhuma combinação produz
+    // colisão, então este teste hoje passa mesmo sem o agrupamento de porções.
+    // Ele existe como regressão: se alguém incluir o mesmo alimento em dois
+    // papéis (proteína e gordura, por exemplo), ou se um coringa for acionado
+    // sobre um item já presente, a refeição passaria a mostrar duas linhas do
+    // mesmo alimento — e este teste falha.
+    const duplicates: string[] = [];
+
+    const restrictionSets = [
+      undefined,
+      { vegetarian: true },
+      { lactoseFree: true },
+      { noFish: true },
+      { vegetarian: true, lactoseFree: true },
+      { vegetarian: true, lactoseFree: true, noFish: true }
+    ];
+
+    for (const tier of TIERS) {
+      for (const restrictions of restrictionSets) {
+        for (let meals = 2; meals <= 6; meals++) {
+          const plans = generateSmartMealPlan({
+            targetCalories: 2400,
+            targetProtein: 180,
+            targetCarbs: 240,
+            targetFat: 70,
+            mealsPerDay: meals,
+            budgetTier: tier,
+            focus: 'recomposition',
+            restrictions
+          });
+
+          for (const plan of plans) {
+            const ids = plan.portions.map((p) => p.foodId);
+            if (new Set(ids).size !== ids.length) {
+              duplicates.push(`${tier}/${JSON.stringify(restrictions)}/${plan.name}: ${ids.join(', ')}`);
+            }
+          }
+        }
+      }
+    }
+
+    expect(duplicates).toEqual([]);
+  });
+
+  it('nunca deve gerar porções com gramatura zero ou negativa', () => {
+    const invalid: string[] = [];
+
+    for (const tier of TIERS) {
+      for (const focus of FOCUSES) {
+        const plans = generateSmartMealPlan({
+          targetCalories: 1600,
+          targetProtein: 140,
+          targetCarbs: 120,
+          targetFat: 50,
+          mealsPerDay: 5,
+          budgetTier: tier,
+          focus
+        });
+
+        for (const plan of plans) {
+          for (const portion of plan.portions) {
+            if (portion.grams <= 0) {
+              invalid.push(`${tier}/${focus}/${plan.name}: ${portion.foodId} = ${portion.grams}g`);
+            }
+          }
+        }
+      }
+    }
+
+    expect(invalid).toEqual([]);
+  });
+
   it('deve respeitar restrições alimentares', () => {
     const vegetarian = generateSmartMealPlan({
       targetCalories: 2200,

@@ -1,17 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
-import { 
-  X, 
-  Check, 
-  Clock, 
-  Trophy, 
-  Zap, 
-  Flame 
+import {
+  X,
+  Check,
+  Clock,
+  Trophy,
+  Zap,
+  Flame,
+  AlertCircle
 } from 'lucide-react';
 import { WorkoutRoutine, WorkoutSessionLog, UserProfile, WorkoutExerciseLog } from '../../core/storage/types';
 import { EXERCISE_DATABASE_MAP } from '../../core/data/exerciseDatabase';
-import { estimateWorkoutCalories, evaluateDoubleProgression } from '../../core/math/trainingEngine';
-import { db } from '../../core/storage/db';
+import {
+  estimateWorkoutCalories,
+  evaluateDoubleProgression,
+  averageMetsForRoutine
+} from '../../core/math/trainingEngine';
+import { db, getLastWeightByExercise } from '../../core/storage/db';
+import { pushSessionLog } from '../../core/supabase/cloudSync';
+import { todayLocal } from '../../core/utils/dateUtils';
 
 interface ActiveWorkoutModalProps {
   isOpen: boolean;
@@ -29,67 +36,126 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
   const [restSecondsRemaining, setRestSecondsRemaining] = useState<number | null>(null);
 
-  // Inicializa logs das séries
+  // Inicializa logs das séries. A carga real de cada exercício é carregada do
+  // histórico logo abaixo, para não recomeçar de um valor fixo a cada treino.
   const [exerciseLogs, setExerciseLogs] = useState<WorkoutExerciseLog[]>(() =>
     routine.exercises.map((item) => ({
       exerciseId: item.exerciseId,
       sets: Array.from({ length: item.targetSets }).map((_, sIdx) => ({
         setNumber: sIdx + 1,
-        weightKg: 20,
+        weightKg: 0,
         reps: item.minReps,
         completed: false
       }))
     }))
   );
 
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Pré-carrega a última carga usada em cada exercício.
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const lastWeights = await getLastWeightByExercise();
+        if (cancelled) return;
+
+        setExerciseLogs((current) =>
+          current.map((log) => {
+            const previous = lastWeights.get(log.exerciseId);
+            if (!previous) return log;
+
+            return {
+              ...log,
+              sets: log.sets.map((set) => {
+                // Só preenche o que ainda está zerado: se o usuário começou a
+                // digitar antes do histórico chegar, o que ele digitou vence.
+                const current = Number(set.weightKg) || 0;
+                return current > 0 ? set : { ...set, weightKg: previous };
+              })
+            };
+          })
+        );
+      } catch (err) {
+        console.warn('Não foi possível carregar o histórico de cargas:', err);
+      } finally {
+        if (!cancelled) setIsLoadingHistory(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const [progressionAlerts, setProgressionAlerts] = useState<string[]>([]);
   const [isFinished, setIsFinished] = useState<boolean>(false);
   const [summaryData, setSummaryData] = useState<{ calories: number; volume: number } | null>(null);
 
-  // Timer da sessão
+  // Timer da sessão (para de contar quando o treino é finalizado)
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isOpen) {
-      interval = setInterval(() => {
-        setElapsedSeconds((s) => s + 1);
-      }, 1000);
-    }
+    if (!isOpen || isFinished) return;
+
+    const interval = setInterval(() => {
+      setElapsedSeconds((s) => s + 1);
+    }, 1000);
+
     return () => clearInterval(interval);
-  }, [isOpen]);
+  }, [isOpen, isFinished]);
 
   // Timer de descanso
   useEffect(() => {
-    let restInterval: NodeJS.Timeout;
-    if (restSecondsRemaining !== null && restSecondsRemaining > 0) {
-      restInterval = setInterval(() => {
-        setRestSecondsRemaining((s) => (s !== null ? s - 1 : null));
-      }, 1000);
-    } else if (restSecondsRemaining === 0) {
+    if (restSecondsRemaining === null) return;
+
+    if (restSecondsRemaining === 0) {
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         navigator.vibrate([200, 100, 200]);
       }
+      return;
     }
+
+    const restInterval = setInterval(() => {
+      setRestSecondsRemaining((s) => (s !== null ? s - 1 : null));
+    }, 1000);
+
     return () => clearInterval(restInterval);
   }, [restSecondsRemaining]);
 
   if (!isOpen) return null;
 
   const handleUpdateSet = (exIdx: number, setIdx: number, field: 'weightKg' | 'reps', val: number | string) => {
-    const newLogs = [...exerciseLogs];
-    newLogs[exIdx].sets[setIdx][field] = val;
-    setExerciseLogs(newLogs);
+    setExerciseLogs((current) =>
+      current.map((log, i) =>
+        i !== exIdx
+          ? log
+          : {
+              ...log,
+              sets: log.sets.map((set, j) => (j === setIdx ? { ...set, [field]: val } : set))
+            }
+      )
+    );
   };
 
   const handleToggleSet = (exIdx: number, setIdx: number) => {
-    const newLogs = [...exerciseLogs];
-    const isNowCompleted = !newLogs[exIdx].sets[setIdx].completed;
-    newLogs[exIdx].sets[setIdx].completed = isNowCompleted;
-    setExerciseLogs(newLogs);
+    const isNowCompleted = !exerciseLogs[exIdx]?.sets[setIdx]?.completed;
+
+    setExerciseLogs((current) =>
+      current.map((log, i) =>
+        i !== exIdx
+          ? log
+          : {
+              ...log,
+              sets: log.sets.map((set, j) => (j === setIdx ? { ...set, completed: isNowCompleted } : set))
+            }
+      )
+    );
 
     if (isNowCompleted) {
       const routineEx = routine.exercises[exIdx];
-      const restTime = routineEx?.restSeconds || 90;
-      setRestSecondsRemaining(restTime);
+      setRestSecondsRemaining(routineEx?.restSeconds || 90);
     }
   };
 
@@ -127,24 +193,45 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
 
     setProgressionAlerts(alerts);
 
-    const durationMin = Math.max(10, Math.round(elapsedSeconds / 60));
-    const caloriesBurned = estimateWorkoutCalories(
-      durationMin,
-      profile.weightKg
-    );
+    // Uma única duração para tudo: antes as calorias usavam o piso de 10 min
+    // enquanto o log gravava a duração sem piso, então um treino de 40 s era
+    // salvo como "0 min" com as calorias de 10 minutos.
+    const durationMin = Math.max(1, Math.round(elapsedSeconds / 60));
+
+    // MET médio real da ficha, em vez de 6,0 fixo para qualquer treino.
+    const routineMets = averageMetsForRoutine(routine, EXERCISE_DATABASE_MAP);
+    const caloriesBurned = estimateWorkoutCalories(durationMin, profile.weightKg, routineMets);
 
     const session: WorkoutSessionLog = {
       routineId: routine.id,
       name: routine.name,
-      date: new Date().toISOString().split('T')[0],
-      durationMinutes: Math.round(elapsedSeconds / 60),
+      date: todayLocal(),
+      durationMinutes: durationMin,
       caloriesBurnedEstimate: caloriesBurned,
       totalVolumeLoadKg: totalVolumeLoad,
       exerciseLogs,
       completed: true
     };
 
-    await db.sessionLogs.add(session);
+    // A celebração só acontece DEPOIS de a gravação ter dado certo: antes o
+    // confete e a tela de sucesso apareciam mesmo com o treino perdido.
+    setIsSaving(true);
+    setSaveError(null);
+
+    try {
+      const savedId = (await db.sessionLogs.add(session)) as number;
+      // Espelha na nuvem quando há sessão do Supabase; falha de rede não
+      // invalida o registro local.
+      void pushSessionLog({ ...session, id: savedId });
+    } catch (err) {
+      console.error('Erro ao salvar o treino:', err);
+      setSaveError(
+        'Não foi possível salvar este treino. Não feche a tela: verifique o armazenamento do navegador e tente novamente.'
+      );
+      return;
+    } finally {
+      setIsSaving(false);
+    }
 
     confetti({
       particleCount: 100,
@@ -186,12 +273,26 @@ export const ActiveWorkoutModal: React.FC<ActiveWorkoutModalProps> = ({
 
         <button
           onClick={handleFinishWorkout}
-          className="px-4 py-2 rounded-xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-lg shadow-lime-500/20 flex items-center gap-1.5"
+          disabled={isSaving}
+          className="px-4 py-2 rounded-xl btn-lime text-slate-950 font-display font-black text-xs uppercase tracking-wider shadow-lg shadow-lime-500/20 flex items-center gap-1.5 disabled:opacity-60"
         >
           <Trophy className="w-4 h-4" />
-          <span>Concluir Treino</span>
+          <span>{isSaving ? 'Salvando...' : 'Concluir Treino'}</span>
         </button>
       </div>
+
+      {saveError && (
+        <div className="mx-4 mt-3 p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-semibold flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>{saveError}</span>
+        </div>
+      )}
+
+      {isLoadingHistory && (
+        <div className="mx-4 mt-3 p-2.5 rounded-2xl bg-[#090F1E] border border-white/[0.06] text-[11px] font-mono text-slate-400 text-center">
+          Carregando suas cargas anteriores...
+        </div>
+      )}
 
       {/* Rest Timer Floating Bar */}
       {restSecondsRemaining !== null && (

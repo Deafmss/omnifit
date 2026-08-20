@@ -7,20 +7,19 @@ export default {
   darkMode: 'class',
   theme: {
     extend: {
+      // Paleta real do tema Electric Lime usado no app. Os tokens antigos
+      // (brand.primary azul #0066FF, surface #0D1527) não eram referenciados
+      // em nenhum componente — todo o app usa estes valores em hex literal.
       colors: {
-        background: '#070D18',
+        obsidian: '#050811',
         surface: {
-          DEFAULT: '#0D1527',
-          hover: '#131F38',
-          card: '#0A1120',
-          border: 'rgba(255, 255, 255, 0.08)'
+          DEFAULT: '#090F1E',
+          sunken: '#060A14',
+          raised: '#0A101F'
         },
-        brand: {
-          primary: '#0066FF',
-          accent: '#10B981',
-          warning: '#F59E0B',
-          danger: '#EF4444',
-          cyan: '#06B6D4'
+        lime: {
+          brand: '#84CC16',
+          bright: '#A3E635'
         }
       },
       fontFamily: {

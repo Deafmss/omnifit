@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { WorkoutSessionLog } from '../../core/storage/types';
+import { formatDayMonthBR } from '../../core/utils/dateUtils';
 import { Dumbbell, Trophy } from 'lucide-react';
 
 interface VolumeTonnageChartProps {
@@ -18,11 +19,12 @@ export const VolumeTonnageChart: React.FC<VolumeTonnageChartProps> = ({ sessions
     );
   }
 
-  // Pega os últimos 7 treinos concluídos em ordem cronológica
+  // Últimos 7 treinos concluídos, em ordem cronológica. Ordena por data em vez
+  // de confiar na ordem que veio da tela.
   const data = sessions
     .filter((s) => s.completed)
-    .slice(0, 7)
-    .reverse();
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-7);
 
   const tonnages = data.map((s) => Number((s.totalVolumeLoadKg / 1000).toFixed(1)));
   const maxTonnage = Math.max(...tonnages, 5);
@@ -35,7 +37,7 @@ export const VolumeTonnageChart: React.FC<VolumeTonnageChartProps> = ({ sessions
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs font-mono">
           <Trophy className="w-4 h-4 text-[#A3E635]" />
-          <span className="font-bold text-slate-200">Sobrecarga & Volume Semanal</span>
+          <span className="font-bold text-slate-200">Sobrecarga por Sessão</span>
         </div>
 
         {activeSession && (
@@ -51,10 +53,15 @@ export const VolumeTonnageChart: React.FC<VolumeTonnageChartProps> = ({ sessions
       </div>
 
       {/* Bar Chart Area (Gym UI Kit Style) */}
-      <div className="h-32 flex items-end justify-between gap-2 pt-6 px-1">
+      <div
+        className="h-32 flex items-end justify-between gap-2 pt-6 px-1"
+        onMouseLeave={() => setHoveredIndex(null)}
+      >
         {data.map((s, idx) => {
           const ton = Number((s.totalVolumeLoadKg / 1000).toFixed(1));
-          const heightPercent = Math.max(15, (ton / maxTonnage) * 100);
+          // Volume zero desenha uma barra mínima apenas como marcador; uma
+          // barra de 15% com rótulo "0t" sugeria carga que não existiu.
+          const heightPercent = ton <= 0 ? 3 : Math.max(12, (ton / maxTonnage) * 100);
           const isHovered = hoveredIndex === idx;
 
           return (
@@ -87,7 +94,7 @@ export const VolumeTonnageChart: React.FC<VolumeTonnageChartProps> = ({ sessions
 
               {/* Date / Label */}
               <span className="text-[9px] font-mono text-slate-500 truncate w-full text-center">
-                {s.date.split('-').slice(1).join('/')}
+                {formatDayMonthBR(s.date)}
               </span>
             </div>
           );
@@ -97,7 +104,7 @@ export const VolumeTonnageChart: React.FC<VolumeTonnageChartProps> = ({ sessions
       {/* Footer Legend */}
       <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 pt-1 border-t border-white/[0.04]">
         <span>Volume mecânico total por sessão</span>
-        <span className="text-[#A3E635] font-bold">Frequência Semanal</span>
+        <span className="text-[#A3E635] font-bold">Últimas {data.length} sessões</span>
       </div>
     </div>
   );

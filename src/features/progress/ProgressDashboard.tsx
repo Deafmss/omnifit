@@ -9,6 +9,7 @@ import {
   Target 
 } from 'lucide-react';
 import { UserProfile, MetabolicStats, WeightLog, WorkoutSessionLog } from '../../core/storage/types';
+import { todayLocal } from '../../core/utils/dateUtils';
 import { db, getWeightHistory, logWeightEntry } from '../../core/storage/db';
 import { CheckInModal } from './CheckInModal';
 import { WeightTrendChart } from './WeightTrendChart';
@@ -31,15 +32,20 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
   const [sessionLogs, setSessionLogs] = useState<WorkoutSessionLog[]>([]);
   const [inputWeight, setInputWeight] = useState<number | string>(profile.weightKg);
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const loadData = async () => {
-    const wLogs = await getWeightHistory();
-    setWeightLogs(wLogs);
+    try {
+      const wLogs = await getWeightHistory();
+      setWeightLogs(wLogs);
 
-    const sLogs = (await db.sessionLogs.toArray()).sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-    setSessionLogs(sLogs);
+      const sLogs = (await db.sessionLogs.toArray()).sort((a, b) => b.date.localeCompare(a.date));
+      setSessionLogs(sLogs);
+      setErrorMsg(null);
+    } catch (err) {
+      console.error('Erro ao carregar o progresso:', err);
+      setErrorMsg('Não foi possível carregar seu histórico. Recarregue a página.');
+    }
   };
 
   useEffect(() => {
@@ -48,22 +54,44 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
 
   const handleLogWeight = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanWeight = typeof inputWeight === 'number' && inputWeight > 0 ? inputWeight : Number(inputWeight) || profile.weightKg;
-    const today = new Date().toISOString().split('T')[0];
-    await logWeightEntry(today, cleanWeight);
-    loadData();
-    onProfileUpdated();
+
+    const parsed = Number(inputWeight);
+    // Faixa fisiologicamente plausível: evita gravar 5 kg ou 900 kg por engano.
+    if (!Number.isFinite(parsed) || parsed < 30 || parsed > 300) {
+      setErrorMsg('Informe um peso entre 30 e 300 kg.');
+      return;
+    }
+
+    try {
+      await logWeightEntry(todayLocal(), parsed);
+      await loadData();
+      onProfileUpdated();
+    } catch (err) {
+      console.error('Erro ao registrar pesagem:', err);
+      setErrorMsg('Não foi possível registrar sua pesagem. Tente novamente.');
+    }
   };
 
-  // Métricas acumuladas
-  const totalTonnageKg = sessionLogs.reduce((acc, s) => acc + s.totalVolumeLoadKg, 0);
-  const totalWorkouts = sessionLogs.length;
+  // Métricas acumuladas — apenas de sessões efetivamente concluídas.
+  const completedSessions = sessionLogs.filter((s) => s.completed);
+  const totalTonnageKg = completedSessions.reduce((acc, s) => acc + (s.totalVolumeLoadKg || 0), 0);
+  const totalWorkouts = completedSessions.length;
 
-  // Estimativa de calorias totais queimadas
-  const totalCaloriesBurned = 2350 + Math.round(totalTonnageKg * 0.15);
+  // Soma o gasto real gravado em cada sessão. O valor anterior era
+  // `2350 + tonelagem * 0.15`, uma constante inventada que exibia 2350 kcal
+  // mesmo sem nenhum treino registrado.
+  const totalCaloriesBurned = completedSessions.reduce(
+    (acc, s) => acc + (s.caloriesBurnedEstimate || 0),
+    0
+  );
 
   return (
     <div className="space-y-4 pb-28 max-w-lg mx-auto p-4 animate-in fade-in duration-300">
+      {errorMsg && (
+        <div className="p-3 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-semibold">
+          {errorMsg}
+        </div>
+      )}
       {/* Top Segmented Tabs (Gym UI Kit Style) */}
       <div className="p-1 bg-[#060A14] border border-white/[0.08] rounded-2xl flex gap-1">
         <button
@@ -308,17 +336,19 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
       )}
 
       {/* Check-In Modal */}
-      <CheckInModal
-        isOpen={isCheckInOpen}
-        onClose={() => setIsCheckInOpen(false)}
-        profile={profile}
-        stats={stats}
-        weightLogs={weightLogs}
-        onRecalibrated={() => {
-          loadData();
-          onProfileUpdated();
-        }}
-      />
+      {isCheckInOpen && (
+        <CheckInModal
+          isOpen
+          onClose={() => setIsCheckInOpen(false)}
+          profile={profile}
+          stats={stats}
+          weightLogs={weightLogs}
+          onRecalibrated={() => {
+            loadData();
+            onProfileUpdated();
+          }}
+        />
+      )}
     </div>
   );
 };

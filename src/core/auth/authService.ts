@@ -46,10 +46,25 @@ const AVATAR_COLORS = [
   'bg-amber-500 text-slate-950'
 ];
 
-function toHex(buffer: ArrayBuffer): string {
-  return Array.from(new Uint8Array(buffer))
+function toHex(data: ArrayBuffer | Uint8Array): string {
+  const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+  return Array.from(bytes)
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
+}
+
+/**
+ * Converte um salt em hex de volta para bytes.
+ * Retorna null para qualquer entrada malformada — um salt corrompido precisa
+ * falhar de forma visível, não gerar silenciosamente uma chave diferente.
+ */
+function saltFromHex(saltHex: string): Uint8Array<ArrayBuffer> | null {
+  if (!/^[0-9a-f]+$/i.test(saltHex) || saltHex.length % 2 !== 0) return null;
+
+  const pairs = saltHex.match(/.{2}/g);
+  if (!pairs) return null;
+
+  return Uint8Array.from(pairs.map((byte) => parseInt(byte, 16)));
 }
 
 function assertCryptoAvailable(): void {
@@ -81,12 +96,21 @@ export async function hashPassword(
 ): Promise<{ hash: string; salt: string }> {
   assertCryptoAvailable();
 
-  const salt = saltHex
-    ? Uint8Array.from(saltHex.match(/.{2}/g)!.map((b) => parseInt(b, 16)))
-    : crypto.getRandomValues(new Uint8Array(16));
+  let salt: Uint8Array<ArrayBuffer>;
+  if (saltHex) {
+    const parsed = saltFromHex(saltHex);
+    if (!parsed) {
+      throw new Error('Não foi possível verificar sua senha: os dados de segurança da conta estão corrompidos.');
+    }
+    salt = parsed;
+  } else {
+    salt = crypto.getRandomValues(new Uint8Array(16));
+  }
 
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
+    // O trim é mantido por compatibilidade: as contas criadas com o hash
+    // legado também aparavam a senha, e mudar isso invalidaria os logins delas.
     new TextEncoder().encode(password.trim()),
     'PBKDF2',
     false,
@@ -99,7 +123,7 @@ export async function hashPassword(
     256
   );
 
-  return { hash: toHex(bits), salt: toHex(salt.buffer as ArrayBuffer) };
+  return { hash: toHex(bits), salt: toHex(salt) };
 }
 
 /**

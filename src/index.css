@@ -9,9 +9,6 @@
     --font-mono: 'JetBrains Mono', monospace;
 
     --bg-obsidian: #050811;
-    --card-surface: #090F1E;
-    --border-subtle: rgba(255, 255, 255, 0.08);
-    --border-glow: rgba(0, 102, 255, 0.25);
   }
 
   body {
@@ -34,20 +31,16 @@
   }
 }
 
-/* Glassmorphism & High-End Card Surfaces */
-.glass-panel {
-  background: rgba(9, 15, 30, 0.75);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+/* Safe Areas (iPhone com notch / barra de gestos).
+   Estas classes eram usadas no header, na navegação inferior e no treino ativo,
+   mas não existiam nem aqui nem no tailwind.config.js: eram no-op, e em modo
+   standalone o conteúdo ficava sob o notch e sob a barra de gestos. */
+.safe-top {
+  padding-top: calc(0.875rem + env(safe-area-inset-top));
 }
 
-.glass-panel-elevated {
-  background: rgba(14, 22, 41, 0.85);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+.safe-bottom {
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
 }
 
 /* Tactile Spring Buttons */

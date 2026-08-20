@@ -3,7 +3,7 @@ import { Search, Plus, Globe, BookOpen, Loader2, Sparkles, AlertCircle } from 'l
 import { FoodItem } from '../../core/storage/types';
 import { TACO_FOOD_DATABASE } from '../../core/data/tacoDatabase';
 import { getAllFoods, saveFoodItem } from '../../core/storage/db';
-import { formatHouseholdPortion, calculateFoodNutrients } from '../../core/math/macroSolver';
+import { formatHouseholdPortion, calculateFoodNutrients, normalizeForSearch } from '../../core/math/macroSolver';
 import { searchOpenFoodFacts } from '../../core/services/openFoodFacts';
 import { Modal } from '../../components/ui/Modal';
 import { CustomFoodModal } from './CustomFoodModal';
@@ -67,15 +67,26 @@ export const FoodPickerModal: React.FC<FoodPickerModalProps> = ({
       return;
     }
 
+    // `cancelled` evita que uma resposta lenta de uma busca anterior sobrescreva
+    // os resultados da busca atual (o clearTimeout sozinho não cancela a
+    // requisição já em voo).
+    let cancelled = false;
+
     const timer = setTimeout(async () => {
       setIsSearchingOnline(true);
       const results = await searchOpenFoodFacts(trimmed);
+
+      if (cancelled) return;
+
       setOnlineResults(results);
       setIsSearchingOnline(false);
       setHasSearchedOnline(true);
     }, 450);
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [search, searchMode]);
 
   const handleTriggerOnlineSearch = async () => {
@@ -89,8 +100,11 @@ export const FoodPickerModal: React.FC<FoodPickerModalProps> = ({
     }
   };
 
+  // Busca insensível a acentos: antes "acucar" não encontrava "Açúcar".
+  const normalizedSearch = normalizeForSearch(search.trim());
   const filteredLocalFoods = foods.filter((f) => {
-    const matchesSearch = f.name.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch =
+      normalizedSearch === '' || normalizeForSearch(f.name).includes(normalizedSearch);
     const matchesCategory = selectedCategory === 'all' || f.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
@@ -415,11 +429,13 @@ export const FoodPickerModal: React.FC<FoodPickerModalProps> = ({
       </Modal>
 
       {/* Modal de cadastro personalizado */}
-      <CustomFoodModal
-        isOpen={isCustomModalOpen}
-        onClose={() => setIsCustomModalOpen(false)}
-        onFoodCreated={handleFoodCreated}
-      />
+      {isCustomModalOpen && (
+        <CustomFoodModal
+          isOpen
+          onClose={() => setIsCustomModalOpen(false)}
+          onFoodCreated={handleFoodCreated}
+        />
+      )}
     </>
   );
 };
