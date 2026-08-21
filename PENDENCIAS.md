@@ -20,9 +20,10 @@ treino (`core/services/reminders.ts`, `core/services/useReminders.ts`,
 (fotos de progresso e modo treinador) exigem decisões de produto descritas na seção
 4.3 — leia antes de começar qualquer uma.
 
-**Duas pendências que só o dono do projeto resolve** — seção 5: rotacionar a chave do
-Supabase e configurar as variáveis de ambiente na Vercel. Sem a segunda, o login com
-Google quebra em produção.
+**Antes de publicar** — seção 5: configurar `VITE_SUPABASE_URL` e
+`VITE_SUPABASE_ANON_KEY` na Vercel (senão o login com Google devolve erro) e conferir
+que o `supabase/schema.sql` foi aplicado de verdade no projeto. A rotação da chave é
+opcional e de prioridade baixa — o motivo está escrito lá.
 
 **Nada foi publicado ainda.** Os commits estão apenas locais; a Vercel só recebe as
 mudanças após `git push`.
@@ -279,12 +280,31 @@ não entregar.
 
 Não podem ser feitas por código:
 
-1. **Rotacionar a chave do Supabase.** As credenciais estavam fixas no código e
-   continuam no histórico do git (commits `4fcff84` e `f89f8e0`). Removê-las do
-   código não as remove do histórico. Gerar chave nova e revogar a antiga.
-2. **Configurar as variáveis de ambiente na Vercel**: `VITE_SUPABASE_URL` e
-   `VITE_SUPABASE_ANON_KEY`. Sem isso o login com Google **quebra em produção**,
-   porque as credenciais hardcoded foram removidas.
+1. **Configurar as variáveis de ambiente na Vercel** — *este é o bloqueio real.*
+   `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` em Settings → Environment
+   Variables, e depois **redeploy** (a Vercel injeta as variáveis no build, então
+   um deploy antigo não as pega). Sem isso o app continua funcionando 100%
+   offline, mas o botão "Continuar com o Google" devolve erro
+   (`signInWithGoogle` lança quando `supabase` é `null`).
+
+2. **Confirmar que o `supabase/schema.sql` foi aplicado no projeto real.**
+   O arquivo cobre as 7 tabelas com `enable row level security` e políticas
+   `auth.uid() = user_id`. Mas o arquivo estar no repositório não prova que foi
+   executado no painel do Supabase. Vale abrir o SQL Editor e conferir — é isso
+   que protege os dados, não a chave.
+
+3. **Rotacionar a chave do Supabase — opcional, prioridade baixa.**
+
+   **Correção de uma avaliação anterior deste documento**, que tratava isso como
+   urgente. A chave que ficou no histórico do git (commits `4fcff84`, `f89f8e0`)
+   é `sb_publishable_...` — a chave **publicável**, o novo formato da anon key.
+   Ela é *feita* para ser pública: vai no bundle JavaScript e qualquer pessoa que
+   abra o app em produção pode lê-la no DevTools. Estar no histórico do git não
+   expõe nada que a produção já não exponha.
+
+   O que de fato limita o acesso é o RLS (item 2). Rotacionar faz sentido por
+   higiene, não por vazamento. **Se o item 2 não estiver confirmado, aí sim há um
+   problema** — mas o problema seria o RLS ausente, não a chave.
 
 ---
 
