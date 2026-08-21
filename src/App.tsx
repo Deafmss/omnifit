@@ -14,6 +14,7 @@ import { WorkoutSplitView } from './features/workout/WorkoutSplitView';
 import { ProgressDashboard } from './features/progress/ProgressDashboard';
 import { AuthScreen } from './features/auth/AuthScreen';
 import { PWAInstallPrompt } from './components/layout/PWAInstallPrompt';
+import { SplashScreen } from './components/layout/SplashScreen';
 import { useReminders } from './core/services/useReminders';
 
 const TABS: ('diet' | 'workout' | 'progress')[] = ['diet', 'workout', 'progress'];
@@ -248,14 +249,7 @@ export const App: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-[#050811] flex items-center justify-center text-slate-400">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-[#84CC16] border-t-transparent rounded-full animate-spin" />
-          <span className="text-xs font-bold font-mono text-[#A3E635]">Conectando ao contêiner OmniFit...</span>
-        </div>
-      </div>
-    );
+    return <SplashScreen />;
   }
 
   // Se não estiver logado em nenhuma conta -> exibe a tela de Autenticação
