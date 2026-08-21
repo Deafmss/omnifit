@@ -94,6 +94,87 @@ function slugify(text: string): string {
 }
 
 /**
+ * Converte um produto do Open Food Facts no formato interno de alimento.
+ *
+ * Compartilhado pela busca por texto e pela leitura de código de barras, para
+ * que os dois caminhos produzam exatamente o mesmo registro — inclusive o mesmo
+ * id determinístico, evitando duplicatas do produto lido de duas formas.
+ */
+function mapProductToFoodItem(prod: OFFProduct, name: string, nut: OFFNutriments): FoodItem | null {
+  const calories = nut['energy-kcal_100g'] ?? nut['energy-kcal'] ?? 0;
+  const protein = nut.proteins_100g ?? 0;
+  const carbs = nut.carbohydrates_100g ?? 0;
+  const fat = nut.fat_100g ?? 0;
+
+  // Produto totalmente sem informação nutricional não serve para nada aqui.
+  if (calories === 0 && protein === 0 && carbs === 0 && fat === 0) return null;
+
+  const brandPrefix = prod.brands ? `${prod.brands.trim()} - ` : '';
+  const fullName = `${brandPrefix}${name.trim()}`;
+  const { servingName, servingGrams, servingUnit } = parseServingInfo(prod.serving_size, prod.serving_quantity);
+
+  return {
+    // Id determinístico: `Math.random()` gerava um id novo a cada busca,
+    // criando duplicatas do mesmo produto no banco de alimentos.
+    id: `off_${prod.code || slugify(fullName)}`,
+    name: fullName,
+    category: inferCategory(nut, prod.categories_tags),
+    servingName,
+    baseGrams: 100,
+    servingUnit,
+    servingGrams,
+    caloriesPer100g: Math.round(calories),
+    proteinPer100g: Number(protein.toFixed(1)),
+    carbsPer100g: Number(carbs.toFixed(1)),
+    fatPer100g: Number(fat.toFixed(1)),
+    fiberPer100g: Number((nut.fiber_100g || 0).toFixed(1)),
+    sodiumMgPer100g: Math.round((nut.sodium_100g || (nut.salt_100g ? nut.salt_100g / 2.5 : 0)) * 1000),
+    isCustom: false
+  };
+}
+
+/** Códigos EAN-8, EAN-13 e UPC-A: só dígitos, entre 8 e 14. */
+export function isValidBarcode(code: string): boolean {
+  return /^\d{8,14}$/.test(code.trim());
+}
+
+/**
+ * Busca um produto pelo código de barras.
+ *
+ * Usa o endpoint direto de produto em vez da busca textual: o código é chave
+ * exata, então a resposta é um produto ou nada — sem lista de aproximados.
+ */
+export async function fetchFoodByBarcode(barcode: string): Promise<FoodItem | null> {
+  const code = barcode.trim();
+  if (!isValidBarcode(code)) return null;
+
+  const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json`;
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) return null;
+
+    const data: { status?: number; product?: OFFProduct } = await res.json();
+    if (data.status !== 1 || !data.product) return null;
+
+    const prod = data.product;
+    const name = prod.product_name_pt || prod.product_name || prod.generic_name;
+    if (!name || !prod.nutriments) return null;
+
+    // Garante o code na resposta: alguns produtos vêm sem ele no corpo.
+    return mapProductToFoodItem({ ...prod, code }, name, prod.nutriments);
+  } catch (error) {
+    console.warn('Leitura de código de barras indisponível ou offline:', error);
+    return null;
+  }
+}
+
+/**
  * Consulta a base nacional oficial do Open Food Facts Brasil
  */
 export async function searchOpenFoodFacts(query: string): Promise<FoodItem[]> {
@@ -125,39 +206,8 @@ export async function searchOpenFoodFacts(query: string): Promise<FoodItem[]> {
       const nut = prod.nutriments;
       if (!nut) continue;
 
-      const calories = nut['energy-kcal_100g'] ?? nut['energy-kcal'] ?? 0;
-      const protein = nut.proteins_100g ?? 0;
-      const carbs = nut.carbohydrates_100g ?? 0;
-      const fat = nut.fat_100g ?? 0;
-
-      // Ignora itens totalmente sem informação nutricional
-      if (calories === 0 && protein === 0 && carbs === 0 && fat === 0) {
-        continue;
-      }
-
-      const brandPrefix = prod.brands ? `${prod.brands.trim()} - ` : '';
-      const fullName = `${brandPrefix}${name.trim()}`;
-      const { servingName, servingGrams, servingUnit } = parseServingInfo(prod.serving_size, prod.serving_quantity);
-      const category = inferCategory(nut, prod.categories_tags);
-
-      validItems.push({
-        // Id determinístico: `Math.random()` gerava um id novo a cada busca,
-        // criando duplicatas do mesmo produto no banco de alimentos.
-        id: `off_${prod.code || slugify(fullName)}`,
-        name: fullName,
-        category,
-        servingName,
-        baseGrams: 100,
-        servingUnit,
-        servingGrams,
-        caloriesPer100g: Math.round(calories),
-        proteinPer100g: Number(protein.toFixed(1)),
-        carbsPer100g: Number(carbs.toFixed(1)),
-        fatPer100g: Number(fat.toFixed(1)),
-        fiberPer100g: Number((nut.fiber_100g || 0).toFixed(1)),
-        sodiumMgPer100g: Math.round((nut.sodium_100g || (nut.salt_100g ? nut.salt_100g / 2.5 : 0)) * 1000),
-        isCustom: false
-      });
+      const item = mapProductToFoodItem(prod, name, nut);
+      if (item) validItems.push(item);
     }
 
     return validItems;

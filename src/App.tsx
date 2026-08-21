@@ -14,6 +14,7 @@ import { WorkoutSplitView } from './features/workout/WorkoutSplitView';
 import { ProgressDashboard } from './features/progress/ProgressDashboard';
 import { AuthScreen } from './features/auth/AuthScreen';
 import { PWAInstallPrompt } from './components/layout/PWAInstallPrompt';
+import { useReminders } from './core/services/useReminders';
 
 const TABS: ('diet' | 'workout' | 'progress')[] = ['diet', 'workout', 'progress'];
 const ACTIVE_TAB_KEY = 'omnifit_active_tab';
@@ -39,6 +40,13 @@ export const App: React.FC = () => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string | null>(null);
+
+  // Lembretes: o ciclo vive aqui, no topo, para existir independentemente de
+  // qual aba está aberta ou de o modal de ajustes estar visível.
+  const { settings: reminderSettings, saveSettings: saveReminderSettings } = useReminders(
+    stats,
+    Boolean(account && profile)
+  );
 
   const setActiveTab = (tab: 'diet' | 'workout' | 'progress') => {
     setActiveTabState(tab);
@@ -332,6 +340,8 @@ export const App: React.FC = () => {
         profile={profile}
         stats={stats}
         account={account}
+        reminderSettings={reminderSettings}
+        onSaveReminders={saveReminderSettings}
         onReOnboard={() => {
           setIsOnboardingOpen(true);
         }}

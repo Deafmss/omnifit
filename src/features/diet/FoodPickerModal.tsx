@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Globe, BookOpen, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { Search, Plus, Globe, BookOpen, Loader2, Sparkles, AlertCircle, ScanLine } from 'lucide-react';
 import { FoodItem } from '../../core/storage/types';
 import { TACO_FOOD_DATABASE } from '../../core/data/tacoDatabase';
 import { getAllFoods, saveFoodItem } from '../../core/storage/db';
@@ -7,6 +7,7 @@ import { formatHouseholdPortion, calculateFoodNutrients, normalizeForSearch } fr
 import { searchOpenFoodFacts } from '../../core/services/openFoodFacts';
 import { Modal } from '../../components/ui/Modal';
 import { CustomFoodModal } from './CustomFoodModal';
+import { BarcodeScannerModal } from './BarcodeScannerModal';
 
 interface FoodPickerModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export const FoodPickerModal: React.FC<FoodPickerModalProps> = ({
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
   const [grams, setGrams] = useState<number | string>(100);
   const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   // Estados de busca online
   const [onlineResults, setOnlineResults] = useState<FoodItem[]>([]);
@@ -46,8 +48,17 @@ export const FoodPickerModal: React.FC<FoodPickerModalProps> = ({
       setGrams(100);
       setOnlineResults([]);
       setHasSearchedOnline(false);
+      setIsScannerOpen(false);
     }
   }, [isOpen]);
+
+  // O produto lido vira a seleção atual; o salvamento no IndexedDB acontece na
+  // confirmação, junto com o resto dos itens vindos da base online.
+  const handleBarcodeFound = (food: FoodItem) => {
+    setIsScannerOpen(false);
+    setSelectedFood(food);
+    setGrams(food.servingGrams || food.baseGrams || 100);
+  };
 
   const handleFoodCreated = async (newFood: FoodItem) => {
     await loadAllFoods();
@@ -182,22 +193,34 @@ export const FoodPickerModal: React.FC<FoodPickerModalProps> = ({
           </div>
 
           {/* Search Input */}
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={
-                searchMode === 'local'
-                  ? 'Buscar por frango, arroz, ovos, salsicha, mortadela, pizza...'
-                  : 'Digite a marca ou produto (ex: Salsicha Sadia, Whey Growth, Danone)...'
-              }
-              className="w-full pl-10 pr-4 py-2.5 bg-[#060A14] border border-white/[0.08] rounded-2xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
-            />
-            {isSearchingOnline && (
-              <Loader2 className="w-4 h-4 text-blue-400 animate-spin absolute right-3.5 top-1/2 -translate-y-1/2" />
-            )}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={
+                  searchMode === 'local'
+                    ? 'Buscar por frango, arroz, ovos, salsicha, mortadela, pizza...'
+                    : 'Digite a marca ou produto (ex: Salsicha Sadia, Whey Growth, Danone)...'
+                }
+                className="w-full pl-10 pr-4 py-2.5 bg-[#060A14] border border-white/[0.08] rounded-2xl text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500"
+              />
+              {isSearchingOnline && (
+                <Loader2 className="w-4 h-4 text-blue-400 animate-spin absolute right-3.5 top-1/2 -translate-y-1/2" />
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsScannerOpen(true)}
+              aria-label="Ler código de barras"
+              title="Ler código de barras"
+              className="px-3 rounded-2xl bg-[#060A14] border border-white/[0.08] text-slate-300 hover:text-[#A3E635] hover:border-[#84CC16]/40 transition-colors btn-tactile"
+            >
+              <ScanLine className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Category Filter Pills (apenas no modo local) */}
@@ -427,6 +450,15 @@ export const FoodPickerModal: React.FC<FoodPickerModalProps> = ({
           </button>
         </div>
       </Modal>
+
+      {/* Leitor de código de barras */}
+      {isScannerOpen && (
+        <BarcodeScannerModal
+          isOpen
+          onClose={() => setIsScannerOpen(false)}
+          onFound={handleBarcodeFound}
+        />
+      )}
 
       {/* Modal de cadastro personalizado */}
       {isCustomModalOpen && (

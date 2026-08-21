@@ -80,7 +80,7 @@ export function buildPlanText(
         continue;
       }
 
-      let totalRefeicao = { kcal: 0, p: 0, c: 0, g: 0 };
+      const totalRefeicao = { kcal: 0, p: 0, c: 0, g: 0 };
 
       for (const portion of meal.portions) {
         const food = FOOD_DATABASE_MAP.get(portion.foodId);

@@ -5,21 +5,20 @@
 
 ## ⏩ RETOMADA RÁPIDA
 
-**Estado:** working tree limpo, tudo commitado. `210 testes` passando, `tsc` limpo,
+**Estado:** working tree limpo, tudo commitado. `281 testes` passando, `tsc` limpo,
 `eslint` 0 erros, `vite build` ok.
 
 **Lista 1 (correções): CONCLUÍDA** — seção 3.
-**Lista 2 (novos recursos): 1 de 12 feito** — seção 4.
+**Lista 2 (novos recursos): 10 de 12 feitos** — seção 4. Os 2 restantes estão
+**deliberadamente adiados**, com o motivo escrito em cada um.
 
-**Último trabalho:** progressão de carga por exercício + recordes pessoais
-(`core/math/strengthProgress.ts`, `features/progress/StrengthProgressChart.tsx`),
-commit `f161350`.
+**Último trabalho:** scanner de código de barras + lembretes de água, refeição e
+treino (`core/services/reminders.ts`, `core/services/useReminders.ts`,
+`features/diet/BarcodeScannerModal.tsx`, `components/layout/RemindersSection.tsx`).
 
-**PRÓXIMO PASSO** — seguir a ordem da seção 4.1, que usa dados que o app já tem:
-1. **Sugestão de deload** — `trainingEngine.auditWorkoutRoutines()` já calcula o MRV
-   por grupo muscular; falta avisar quando o volume estourar o teto.
-2. **Copiar refeição de outro dia** — a tabela `foodLogs` já tem o histórico por data.
-3. **Templates de refeição** ("meu café da manhã padrão").
+**PRÓXIMO PASSO:** não há item obrigatório em aberto. As duas pendências da Lista 2
+(fotos de progresso e modo treinador) exigem decisões de produto descritas na seção
+4.3 — leia antes de começar qualquer uma.
 
 **Duas pendências que só o dono do projeto resolve** — seção 5: rotacionar a chave do
 Supabase e configurar as variáveis de ambiente na Vercel. Sem a segunda, o login com
@@ -214,19 +213,65 @@ realista — mas muda as metas de todos os usuários. Decidir antes de implement
 
 ### 4.2 Alto impacto no uso diário (esforço médio)
 
-6. **Scanner de código de barras.** `core/services/openFoodFacts.ts` já consulta a
-   base por texto; adicionar busca por EAN + leitura de câmera (`BarcodeDetector` com
-   fallback).
-7. **Lembretes e notificações.** O PWA já tem service worker: beber água, hora da
-   refeição, treino do dia.
-8. **Fotos de progresso** com comparação lado a lado.
+6. ~~**Scanner de código de barras.**~~ ✅ FEITO
+   `openFoodFacts.fetchFoodByBarcode()` consulta o endpoint de produto do Open Food
+   Facts (chave exata, não busca textual) e reaproveita o mesmo mapeador da busca por
+   texto — os dois caminhos geram o mesmo id determinístico, sem duplicar o produto.
+   A UI é `features/diet/BarcodeScannerModal.tsx`, aberta pelo botão de scanner ao
+   lado da busca no `FoodPickerModal`.
+
+   **Limitação real:** `BarcodeDetector` não existe no Safari nem em navegadores
+   antigos, e a permissão de câmera pode ser negada. Nos dois casos o modal cai na
+   digitação manual do código, que resolve o mesmo problema. A câmera é liberada ao
+   fechar o modal (sem isso o LED fica aceso).
+
+7. ~~**Lembretes e notificações.**~~ ✅ FEITO
+   `core/services/reminders.ts` tem a regra pura de "quando avisar"
+   (`collectDueReminders`), com 24 testes; `core/services/useReminders.ts` roda o
+   ciclo de 1 minuto lendo o estado do banco; `components/layout/RemindersSection.tsx`
+   são os ajustes, dentro do modal de perfil. As preferências ficam em `appMeta`, ou
+   seja, por usuário.
+
+   Cobre água (por intervalo, dentro de uma janela de horas, e para de avisar quando
+   a meta do dia é batida), refeição (no horário do plano, por até 45 min, e só se
+   ainda não houver registro no diário) e treino (no horário escolhido, só nos dias
+   com treino no plano e se ainda não foi concluído). As chaves de disparo incluem a
+   data, então os avisos se renovam sozinhos a cada dia.
+
+   **Limitação real, dita na própria interface:** sem servidor de push, o aviso só sai
+   com o app aberto (inclusive em segundo plano no celular com a PWA instalada).
+   Notificação com o app totalmente fechado exigiria Web Push com backend e chaves
+   VAPID — incompatível com o modo local-first atual.
 
 ### 4.3 Recursos de coach (diferencial)
 
-9. **Ciclo de carboidratos** — mais carboidrato em dia de treino, menos em descanso.
-10. **Refeição livre planejada** com compensação ao longo da semana.
-11. **Exportar dieta e treino em PDF** para levar ao nutricionista ou personal.
-12. **Modo treinador** — compartilhar plano com aluno (esforço grande).
+9. ~~**Ciclo de carboidratos**~~ ✅ FEITO — `core/math/carbCycling.ts`, 13 testes.
+10. ~~**Refeição livre planejada**~~ ✅ FEITO — `planFreeMeal()`, mesmo módulo.
+11. ~~**Exportar dieta e treino**~~ ✅ FEITO — `core/backup/planExport.ts`, 8 testes.
+    Gera **texto puro**, não PDF: um PDF exigiria biblioteca de ~300 KB no bundle e o
+    texto atende os dois usos reais (mandar por mensagem e imprimir pelo navegador).
+
+### 4.4 Adiados de propósito (decisão de produto pendente)
+
+Os dois itens abaixo **não** foram feitos, e não por falta de tempo — cada um exige
+uma decisão que muda a arquitetura. Entregá-los "mais ou menos" custaria mais do que
+não entregar.
+
+8. **Fotos de progresso** com comparação lado a lado.
+   **Decisão pendente:** onde guardar as imagens. O backup atual é um JSON único, e
+   fotos em base64 dentro dele inflam o arquivo para dezenas de MB, tornando o
+   `downloadUserDataBackup` inutilizável na prática. Os caminhos possíveis são: (a)
+   blobs no IndexedDB e **fora** do backup JSON — simples, mas as fotos não viajam
+   entre dispositivos; (b) Supabase Storage — as fotos sincronizam, mas passam a
+   depender de nuvem e de política RLS própria, quebrando a premissa local-first para
+   o dado mais sensível do app; (c) exportação separada, um ZIP de fotos à parte.
+   Antes de codar, escolher uma.
+
+12. **Modo treinador** — compartilhar plano com aluno.
+    **Por que está fora:** exige backend com autenticação de dois papéis (treinador e
+    aluno), modelo de permissão, convite/aceite e uma tela nova inteira. É um projeto
+    próprio, não um recurso incremental — o app hoje é single-user local-first, e isso
+    atravessa a arquitetura toda.
 
 ---
 
@@ -245,21 +290,26 @@ Não podem ser feitas por código:
 
 ## 6. Ordem sugerida
 
-1. **Testes de componente** (3.2) — rede de proteção antes de mexer em UI
-2. **Sync bidirecional** (3.1) — o recurso que hoje está pela metade
-3. **Progressão de carga + PRs** (4.1 itens 1 e 2) — primeiro ganho que o usuário sente
-4. **Quebrar componentes gigantes** (3.3) — agora com testes cobrindo
-5. **Scanner de código de barras + lembretes** (4.2)
-6. Restante da seção 4
+A ordem abaixo **já foi executada** por completo:
+
+1. ~~Testes de componente (3.2)~~
+2. ~~Sync bidirecional (3.1)~~
+3. ~~Progressão de carga + PRs (4.1 itens 1 e 2)~~
+4. ~~Quebrar componentes gigantes (3.3)~~
+5. ~~Scanner de código de barras + lembretes (4.2)~~
+6. ~~Restante da seção 4~~ — exceto os dois itens da seção 4.4, adiados de propósito
+
+O que sobra é a seção 5 (ações do dono do projeto) e, se houver interesse, decidir o
+armazenamento das fotos de progresso descrito em 4.4.
 
 ---
 
 ## 7. Aviso sobre o estado do repositório
 
-Há **23 arquivos modificados e não commitados**, contendo as correções descritas na
-seção 2 (diário alimentar, termogênese, backup, ESLint, déficit).
+Working tree limpo: tudo está commitado. Mas **nada foi publicado**.
 
 - O código **está rodando** localmente — o Vite lê do disco, não do git.
-- **A produção na Vercel NÃO tem essas correções**: o último commit publicado é de UI.
-- Para chegar em produção: `commit` → `push` → a Vercel faz o deploy.
-- **Antes de subir**, configure as variáveis de ambiente (seção 5, item 2).
+- **A produção na Vercel não tem nenhuma destas mudanças.** Os commits são locais.
+- Para chegar em produção: `git push` → a Vercel faz o deploy.
+- **Antes de subir**, configure as variáveis de ambiente (seção 5, item 2). Sem elas
+  o login com Google quebra em produção.

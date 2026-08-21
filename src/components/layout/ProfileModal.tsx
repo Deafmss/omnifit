@@ -24,6 +24,8 @@ import { downloadUserDataBackup, importUserData } from '../../core/backup/dataBa
 import { pullFromCloud } from '../../core/storage/cloudRestore';
 import { downloadPlanText, sharePlanText } from '../../core/backup/planExport';
 import { db } from '../../core/storage/db';
+import { ReminderSettings } from '../../core/services/reminders';
+import { RemindersSection } from './RemindersSection';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -35,6 +37,9 @@ interface ProfileModalProps {
   onLogout: () => void;
   /** Chamado após restaurar dados, para a tela recarregar o perfil novo. */
   onDataRestored?: () => void;
+  /** Preferências de lembretes; o ciclo em si roda no App. */
+  reminderSettings?: ReminderSettings | null;
+  onSaveReminders?: (next: ReminderSettings) => Promise<void>;
 }
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({
@@ -45,7 +50,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   account,
   onReOnboard,
   onLogout,
-  onDataRestored
+  onDataRestored,
+  reminderSettings,
+  onSaveReminders
 }) => {
   const [installMsg, setInstallMsg] = useState<string | null>(null);
   const [cloudSyncOn, setCloudSyncOn] = useState(false);
@@ -383,6 +390,13 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             Vitaminas ativas: B5 (5.64mg), B6 (3.9mg), Vitamina E (30mg).
           </p>
         </div>
+
+        {/* Lembretes */}
+        {reminderSettings && onSaveReminders && (
+          <div className="pt-3 border-t border-white/[0.06]">
+            <RemindersSection settings={reminderSettings} onSave={onSaveReminders} />
+          </div>
+        )}
 
         {/* Backup & Restore (local-first: sem isto, limpar o navegador apaga tudo) */}
         <div className="p-4 rounded-2xl bg-slate-900 border border-white/10 space-y-2.5 text-xs">
