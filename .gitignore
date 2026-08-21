@@ -34,3 +34,6 @@ dist-ssr
 
 # Vercel
 .vercel
+
+# Configuração local de ferramentas de IA
+.claude/
