@@ -10,32 +10,15 @@ export const SplashScreen: React.FC = () => {
       <div className="flex flex-col items-center gap-6 relative z-10 animate-in fade-in zoom-in-95 duration-500">
         {/* Animated Dumbbell / Halter Logo Container */}
         <div className="relative group">
-          <div className="absolute -inset-2 bg-gradient-to-r from-lime-500/30 to-emerald-500/30 rounded-3xl blur-xl transition-all group-hover:blur-2xl animate-pulse" />
+          <div className="absolute -inset-3 bg-gradient-to-r from-lime-500/30 via-emerald-500/30 to-lime-400/30 rounded-3xl blur-xl transition-all animate-pulse" />
           
-          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-[#090F1E] border border-[#84CC16]/40 p-4 flex items-center justify-center shadow-2xl relative shadow-lime-500/20">
-            {/* Real Gym Dumbbell Vector Icon */}
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              className="w-full h-full text-[#A3E635] drop-shadow-[0_0_12px_rgba(163,230,53,0.5)] transition-transform duration-700 hover:scale-105"
-            >
-              {/* Central Grip Bar */}
-              <line x1="6.5" y1="12" x2="17.5" y2="12" stroke="#E2E8F0" strokeWidth="2.2" strokeLinecap="round" />
-              <line x1="9.5" y1="10.8" x2="9.5" y2="13.2" stroke="#64748B" strokeWidth="1.2" strokeLinecap="round" />
-              <line x1="12" y1="10.8" x2="12" y2="13.2" stroke="#64748B" strokeWidth="1.2" strokeLinecap="round" />
-              <line x1="14.5" y1="10.8" x2="14.5" y2="13.2" stroke="#64748B" strokeWidth="1.2" strokeLinecap="round" />
-
-              {/* Left Plates (Anilhas Esquerda) */}
-              <rect x="5" y="8" width="1.8" height="8" rx="0.8" fill="#84CC16" stroke="#A3E635" strokeWidth="0.8" />
-              <rect x="3" y="6" width="2" height="12" rx="1" fill="#090F1E" stroke="#A3E635" strokeWidth="1.2" />
-              <rect x="1.2" y="7.5" width="1.8" height="9" rx="0.8" fill="#84CC16" stroke="#84CC16" strokeWidth="0.6" />
-
-              {/* Right Plates (Anilhas Direita) */}
-              <rect x="17.2" y="8" width="1.8" height="8" rx="0.8" fill="#84CC16" stroke="#A3E635" strokeWidth="0.8" />
-              <rect x="19" y="6" width="2" height="12" rx="1" fill="#090F1E" stroke="#A3E635" strokeWidth="1.2" />
-              <rect x="21" y="7.5" width="1.8" height="9" rx="0.8" fill="#84CC16" stroke="#84CC16" strokeWidth="0.6" />
-            </svg>
+          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-[#090F1E] border border-[#84CC16]/40 p-3 flex items-center justify-center shadow-2xl relative shadow-lime-500/20">
+            {/* Real Gym Dumbbell Icon from favicon.svg */}
+            <img
+              src="/favicon.svg"
+              alt="OmniFit Halter"
+              className="w-full h-full object-contain drop-shadow-[0_0_16px_rgba(163,230,53,0.5)] transition-transform duration-700 hover:scale-105"
+            />
           </div>
         </div>
 
@@ -62,3 +45,5 @@ export const SplashScreen: React.FC = () => {
     </div>
   );
 };
+
+export default SplashScreen;
